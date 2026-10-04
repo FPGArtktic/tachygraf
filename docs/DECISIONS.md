@@ -379,3 +379,63 @@ reliably produce Polish technical terminology, that is an argument about
 CLAUDE.md's open decision 2 (note language) rather than about the prompt: the
 glossary is the one part of the note that exists to be in Polish, and a
 glossary that invents terms is worse than no glossary.
+
+## 2026-10-04 — A folder of recordings is one command, and the hard part is duplicates
+
+A course is twenty recordings, not one long one, and `bin/tachygraf cli add`
+twenty times is not a thing to ask of anyone. `app/batch.py` takes a folder
+and queues all five stages for every recording in it, each with its own slug,
+its own output folder and its own notes.
+
+The loop is not the problem. What a downloader leaves on disk is: the same
+lecture as a 4K video *and* as an audio-only track, beside a subtitle file, a
+thumbnail and a description. Processing every media file would transcribe
+every lecture twice and generate two sets of notes from the same words — for
+a twenty-part course, a day of the card spent on duplicates. So the module
+collapses each recording to one file before anything is queued.
+
+Three things must agree for two files to be one recording: the parent
+directory, the title once the format tag is stripped, and the duration to
+within 1.5 s. All three, because any two give a false positive on real data,
+and the first version of this proved it: duration and directory alone merged
+a flat course folder into a single recording, because a course cut to a slot
+has many episodes of exactly the same length. Title and directory alone would
+merge a lecture with its own trailer.
+
+The asymmetry decides the strictness. Being wrong towards "these are
+different" costs a duplicated recording, which the plan shows and the user
+can see. Being wrong towards "these are the same" drops a lecture silently.
+
+Three smaller decisions follow from the same data:
+
+- The audio-only file wins. The audio is identical, it is a tenth of the
+  bytes, and ffmpeg does not have to walk past a video stream to reach it.
+- A title is the file stem with trailing format brackets removed, and only
+  those: `(2160p_25fps_AV1-128kbit_AAC-English)` goes, `(part 2)` stays. The
+  bracket's contents are split on underscores before being matched, because
+  an underscore is a word character and the first version of the pattern
+  matched nothing inside `1080p_30fps_H264`.
+- Recordings are ordered naturally, so `lekcja-9` precedes `lekcja-10`, and
+  the search descends into subdirectories by default, because a downloaded
+  playlist is often one folder per recording rather than one folder of them.
+
+The plan is printed before anything is queued, and `--dry-run` prints it and
+stops. That is not a convenience: the batch chooses files on the user's
+behalf, and a choice made for someone has to be visible to them.
+
+## 2026-10-04 — A batch is ordered by recording, not by stage
+
+The five jobs of one recording are queued together, so the first lecture's
+notes are finished before the second lecture's transcription starts. A
+complete note is the product and a transcript is an intermediate, so a batch
+stopped halfway should leave finished lectures behind rather than twenty
+transcripts and nothing to read.
+
+The cost is that the text model is unloaded when each `generate` job ends and
+reloaded for the next recording, because the card is handed back when a job
+ends. At the measured ten minutes per window that is a few per cent, and the
+alternative — keeping the model resident across jobs when the next queued job
+wants the same one — would relax a non-negotiable for a saving that small.
+Stage-grouped order (every transcription, then every generation) would give
+all the transcripts sooner and is a one-line change in `batch.queue` if a long
+course ever makes that the better trade.

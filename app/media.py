@@ -37,10 +37,18 @@ class MediaInfo:
     audio_streams: int
     language_hint: str | None
     codec: str | None
+    # Last, with a default, so the positional constructor keeps working.
+    # Needed only to tell an audio-only download from the video of the same
+    # lecture, which is a question the batch stage asks (see app/batch.py).
+    video_streams: int = 0
 
     @property
     def duration_hms(self) -> str:
         return hms(self.duration_s)
+
+    @property
+    def audio_only(self) -> bool:
+        return self.video_streams == 0
 
 
 # NFKD decomposes ą, ć, ę, ń, ó, ś, ź and ż into a plain letter plus a
@@ -128,11 +136,9 @@ def probe(media_path: Path) -> MediaInfo:
     except json.JSONDecodeError as error:
         raise MediaError(f"ffprobe returned no usable JSON for {media_path}") from error
 
-    audio = [
-        stream
-        for stream in parsed.get("streams", [])
-        if stream.get("codec_type") == "audio"
-    ]
+    streams = parsed.get("streams", [])
+    audio = [stream for stream in streams if stream.get("codec_type") == "audio"]
+    video = [stream for stream in streams if stream.get("codec_type") == "video"]
     if not audio:
         raise MediaError(f"{media_path} has no audio stream")
 
@@ -155,6 +161,7 @@ def probe(media_path: Path) -> MediaInfo:
         audio_streams=len(audio),
         language_hint=(audio[0].get("tags") or {}).get("language"),
         codec=audio[0].get("codec_name"),
+        video_streams=len(video),
     )
     log.event(
         "extract",

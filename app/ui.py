@@ -24,6 +24,7 @@ from pathlib import Path
 
 import gradio as gr
 
+from app import batch as batch_module
 from app import config, db, generate, log, media, ollama, transcribe
 
 WORKER_RESTART_S = 5.0
@@ -279,6 +280,31 @@ def build() -> gr.Blocks:
                 probe_output = gr.Markdown()
                 device_output = gr.Markdown(device_note())
 
+        gr.Markdown(
+            "## A whole folder at once\n"
+            "A course, one set of notes per recording. The same lecture in two "
+            "containers counts once: a video and the audio-only track beside it "
+            "have the same title and the same length, and the audio one is "
+            "used. Look at the plan before queueing it."
+        )
+        with gr.Row():
+            batch_dir = gr.Textbox(
+                label="Folder of recordings (searched including subfolders)",
+                value=str(config.IN_DIR),
+            )
+            batch_prefix = gr.Textbox(
+                label="Slug prefix (optional, e.g. the course name)",
+                placeholder="kurs-elektroniki",
+            )
+            batch_number = gr.Checkbox(
+                label="Number the slugs, so the course keeps its order",
+                value=False,
+            )
+        with gr.Row():
+            batch_plan = gr.Button("Show me the plan")
+            batch_queue = gr.Button("Queue the whole folder", variant="primary")
+        batch_output = gr.Code(label="Plan", language=None, lines=12)
+
         with gr.Row():
             run_all = gr.Button(
                 "Run everything  (extract → transcribe → chunk → generate → index)",
@@ -412,6 +438,45 @@ def build() -> gr.Blocks:
                 job_table(conn),
             )
 
+        def _batch_plan(folder, prefix, number):
+            try:
+                return batch_module.plan(
+                    Path(folder), slug_prefix=prefix or "", number=bool(number)
+                )
+            except media.MediaError as error:
+                raise gr.Error(str(error)) from error
+
+        def on_batch_plan(folder, prefix, number):
+            return batch_module.describe(_batch_plan(folder, prefix, number))
+
+        def on_batch_queue(
+            folder,
+            prefix,
+            number,
+            notes,
+            domain_value,
+            language_value,
+            asr_value,
+            model_value,
+        ):
+            built = _batch_plan(folder, prefix, number)
+            if not built.recordings:
+                raise gr.Error(f"no recordings found in {folder}")
+            jobs = batch_module.queue(
+                conn,
+                built,
+                domain=domain_value.strip() or config.DEFAULT_DOMAIN,
+                out_dir=resolve_out_dir(notes),
+                language=language_value,
+                asr_model=asr_value,
+                text_model=model_value,
+            )
+            return (
+                f"Queued {len(jobs)} jobs for {len(built.recordings)} "
+                f"recording(s).\n\n{batch_module.describe(built)}",
+                job_table(conn),
+            )
+
         def on_stop(job_id):
             return stop_jobs(conn, job_id), job_table(conn)
 
@@ -428,6 +493,23 @@ def build() -> gr.Blocks:
         identity = [media_dir, notes_dir, title, slug, domain, source]
 
         asr_model.change(on_asr_model, asr_model, device_output)
+        batch_plan.click(
+            on_batch_plan, [batch_dir, batch_prefix, batch_number], batch_output
+        )
+        batch_queue.click(
+            on_batch_queue,
+            [
+                batch_dir,
+                batch_prefix,
+                batch_number,
+                notes_dir,
+                domain,
+                language,
+                asr_model,
+                model,
+            ],
+            [batch_output, jobs],
+        )
         refresh_media.click(on_refresh_media, media_dir, source)
         refresh_models.click(on_refresh_models, outputs=model)
         probe_button.click(on_probe, [media_dir, source], probe_output)

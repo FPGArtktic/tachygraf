@@ -13,6 +13,7 @@ import argparse
 import json
 from pathlib import Path
 
+from app import batch as batch_module
 from app import config, db, media, worker
 
 STAGES = ("extract", "transcribe", "chunk", "generate", "index")
@@ -38,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
         source_id = _add(conn, args)
         print(f"source {source_id}")
         return 0
+    if args.command == "batch":
+        return _batch(conn, args)
     return _queue_stage(conn, args)
 
 
@@ -68,6 +71,52 @@ def _parser() -> argparse.ArgumentParser:
         f"(default: {config.OUT_DIR})",
     )
 
+    batch = sub.add_parser(
+        "batch",
+        help="register every recording in a folder and queue all five stages "
+        "for each of them",
+        description="A folder of recordings, one set of notes per recording. "
+        "The same lecture in two containers counts once: a video and the "
+        "audio-only track beside it share a folder, a title and a length, and "
+        "the audio one is used. Run with --dry-run first to see what was "
+        "chosen and what was skipped.",
+    )
+    batch.add_argument("folder", type=Path)
+    batch.add_argument(
+        "--domain",
+        default=None,
+        help="the field every recording in this folder belongs to, e.g. "
+        f"electronics (default: {config.DEFAULT_DOMAIN})",
+    )
+    batch.add_argument("--out", type=Path, default=None, help="staging folder")
+    batch.add_argument(
+        "--language",
+        default=config.LANGUAGE,
+        help=f"spoken language, or 'auto' (default: {config.LANGUAGE})",
+    )
+    batch.add_argument("--asr-model", default=config.ASR_MODEL)
+    batch.add_argument("--model", default=config.TEXT_MODEL, help="the text model")
+    batch.add_argument(
+        "--no-recurse",
+        action="store_true",
+        help="look only in the folder itself. The default descends, because a "
+        "downloaded playlist is often one folder per recording",
+    )
+    batch.add_argument(
+        "--number",
+        action="store_true",
+        help="prefix each slug with its position, so a course keeps its order "
+        "in any listing: 01-diodes, 02-transistors",
+    )
+    batch.add_argument(
+        "--prefix", default="", help="prefix every slug, e.g. the course name"
+    )
+    batch.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the plan and queue nothing",
+    )
+
     for stage in STAGES:
         stage_parser = sub.add_parser(stage, help=f"queue the {stage} stage")
         stage_parser.add_argument("--source", required=True, help="recording slug")
@@ -95,6 +144,43 @@ def _add(conn, args) -> int:
     return db.upsert_source(
         conn, slug, title, args.media.resolve(), out_dir, args.domain
     )
+
+
+def _batch(conn, args) -> int:
+    """Plan the folder, print what was chosen, then queue it.
+
+    The plan is printed either way, not only for --dry-run: the batch picks
+    one file per recording on the user's behalf, and a choice made for someone
+    has to be visible to them.
+    """
+    try:
+        built = batch_module.plan(
+            args.folder,
+            recurse=not args.no_recurse,
+            slug_prefix=args.prefix,
+            number=args.number,
+        )
+    except media.MediaError as error:
+        raise SystemExit(f"tachygraf: {error}") from error
+
+    print(batch_module.describe(built))
+    if not built.recordings:
+        raise SystemExit("tachygraf: no recordings found; nothing queued")
+    if args.dry_run:
+        print("\n--dry-run: nothing was queued")
+        return 0
+
+    jobs = batch_module.queue(
+        conn,
+        built,
+        domain=args.domain or config.DEFAULT_DOMAIN,
+        out_dir=args.out.expanduser().resolve() if args.out else None,
+        language=args.language,
+        asr_model=args.asr_model,
+        text_model=args.model,
+    )
+    print(f"\nqueued {len(jobs)} jobs for {len(built.recordings)} recording(s)")
+    return 0
 
 
 def _queue_stage(conn, args) -> int:

@@ -133,6 +133,33 @@ bin/tachygraf cli index      --source lec4
 bin/tachygraf cli queue
 ```
 
+### A whole course at once
+
+A folder of recordings becomes one set of notes per recording, each in its own
+subfolder of the output folder. `--dry-run` prints the plan and queues nothing,
+which is worth doing first.
+
+```
+bin/tachygraf cli batch /in/kurs-elektroniki --domain electronics --dry-run
+bin/tachygraf cli batch /in/kurs-elektroniki --domain electronics --number
+```
+
+The folder is searched including its subfolders, because a downloaded playlist
+is often one folder per recording. The same lecture in two containers counts
+once: a video and the audio-only track beside it have the same title and the
+same length, and the audio one is used, since the audio is identical and a
+tenth of the size. A file with no audio stream — a thumbnail that happens to
+be an `.mp4` — is named and skipped rather than failing the batch.
+
+Recordings are ordered the way a person reads them, so `lekcja-9` comes before
+`lekcja-10`. `--number` prefixes each slug with its position so the course
+keeps that order in any listing, and `--prefix` namespaces the whole course.
+
+The five stages of one recording are queued together, so the first lecture's
+notes are finished before the second lecture's transcription starts. Stopping
+a batch halfway leaves finished lectures behind rather than a pile of
+transcripts.
+
 When the work is done, stop it. `stop` also unloads the text model from
 Ollama, so the GPU is free for whatever else uses it.
 

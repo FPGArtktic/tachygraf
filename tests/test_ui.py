@@ -177,3 +177,42 @@ def test_a_job_asked_to_stop_reads_as_stopping_while_it_finishes() -> None:
 def test_the_generator_marker_is_the_one_the_ui_looks_for() -> None:
     """is_ours is what keeps the preview and the index off the user's files."""
     assert generate.GENERATOR == "tachygraf"
+
+
+# --- the batch section --------------------------------------------------------
+
+
+def test_the_batch_plan_is_shown_before_anything_is_queued(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The batch picks one file per recording for the user; they must see it."""
+    from app import batch, media
+
+    folder = tmp_path / "kurs"
+    (folder / "L1").mkdir(parents=True)
+    video = folder / "L1" / "One (2160p_AV1-AAC).mp4"
+    audio = folder / "L1" / "One (128kbit_AAC).m4a"
+    video.write_bytes(b"x" * 2000)
+    audio.write_bytes(b"x" * 100)
+
+    def probe(path: Path) -> media.MediaInfo:
+        return media.MediaInfo(
+            path, 600.0, 1, "eng", "aac", video_streams=path.suffix == ".mp4"
+        )
+
+    monkeypatch.setattr(media, "probe", probe)
+    text = batch.describe(batch.plan(folder))
+    assert "One (128kbit_AAC).m4a" in text
+    assert "skipped" in text
+
+
+def test_the_batch_folder_defaults_to_the_recordings_mount() -> None:
+    """It is the read-only mount, which is where a downloaded course lands."""
+    assert batch_default_is_in_dir()
+
+
+def batch_default_is_in_dir() -> bool:
+    import inspect
+
+    source = inspect.getsource(ui.build)
+    return "batch_dir" in source and "config.IN_DIR" in source
