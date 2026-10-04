@@ -1,0 +1,202 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Mateusz <109816464+FPGArtktic@users.noreply.github.com>
+#
+# Start tachygraf when you want it, stop it when you are done.
+#
+# tachygraf is a batch job, not a service: it is not enabled at login, it does
+# not restart itself, and it holds the GPU only while a job is running. The
+# Quadlet unit is the single source of run configuration; this script fills in
+# its three paths at install time and drives it afterwards.
+#
+# Derived from bin/glosator. Two things differ: the output folder must not be
+# an Obsidian vault, and the container is given the GPU for the ASR stage.
+
+set -eu
+
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
+UNIT="$UNIT_DIR/tachygraf.container"
+# 127.0.0.1, not localhost: pasta publishes the port on IPv4 only, and
+# localhost resolves to ::1 first on a dual-stack host.
+URL="http://127.0.0.1:7861"
+OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
+TEXT_MODEL="${TACHYGRAF_TEXT_MODEL:-qwen2.5:32b}"
+REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+usage() {
+    cat <<USAGE
+usage: tachygraf <command>
+
+  install MEDIA NOTES   write the systemd unit for those two folders
+  uninstall             stop it and remove the unit; data is never touched
+  build                 build the container image
+  start                 start the container and open $URL
+  stop                  stop the container and free the GPU
+  status                is it running, and what holds the GPU
+  logs                  follow the container's log
+  cli ...               run a tachygraf command inside the running container
+
+MEDIA is the folder your recordings are in; it is mounted read-only.
+NOTES is the folder the transcript and the notes are written to. It is a
+staging folder, not your vault: a path that is, or sits inside, an Obsidian
+vault is refused. Move the notes into the vault yourself when they are done.
+
+Nothing starts at login and nothing restarts by itself. Run 'start' when you
+want to work on a recording and 'stop' when you are done.
+USAGE
+}
+
+die() {
+    echo "tachygraf: $*" >&2
+    exit 1
+}
+
+running() {
+    podman container exists tachygraf 2>/dev/null &&
+        [ "$(podman inspect -f '{{.State.Running}}' tachygraf 2>/dev/null)" = "true" ]
+}
+
+# True when PATH is an Obsidian vault or lies inside one. The container must
+# never see the vault: a bug in the index stage, a bad slug, a stuck rename,
+# none of it may reach the notes that already matter.
+inside_vault() {
+    dir=$1
+    while [ "$dir" != "/" ] && [ -n "$dir" ]; do
+        [ -d "$dir/.obsidian" ] && return 0
+        dir=$(dirname -- "$dir")
+    done
+    return 1
+}
+
+# Every host path the unit mounts. A missing one makes podman fail with a bare
+# "statfs: no such file or directory", which says nothing about what to do.
+unit_volumes() {
+    sed -n 's/^Volume=\(.*\):\/[a-z]*\(:.*\)\?$/\1/p' "$UNIT"
+}
+
+preflight() {
+    [ -f "$UNIT" ] || die "no unit installed; run: tachygraf install MEDIA NOTES"
+    missing=""
+    for path in $(unit_volumes); do
+        [ -d "$path" ] || missing="$missing  $path
+"
+    done
+    if [ -n "$missing" ]; then
+        printf 'tachygraf: these folders do not exist:\n%s' "$missing" >&2
+        die "create them, or re-run: tachygraf install MEDIA NOTES"
+    fi
+    podman image exists tachygraf:latest ||
+        die "no tachygraf:latest image; run: tachygraf build"
+    # The ASR stage needs the card inside the container. Without a CDI spec
+    # podman fails at start with a message about nvidia.com/gpu that does not
+    # say what to run.
+    ls /etc/cdi/nvidia.yaml /var/run/cdi/nvidia.yaml >/dev/null 2>&1 ||
+        echo "tachygraf: warning: no CDI spec for the GPU; transcription will" \
+             "run on the CPU. To fix: sudo nvidia-ctk cdi generate" \
+             "--output=/etc/cdi/nvidia.yaml" >&2
+    curl -s -m 3 -o /dev/null "$OLLAMA_URL/api/tags" ||
+        echo "tachygraf: warning: no Ollama at $OLLAMA_URL; transcription will" \
+             "work, note generation will not" >&2
+}
+
+unload_models() {
+    # Hand the card back to whatever else runs on this machine. The worker
+    # already unloads after each job; this covers a container killed mid-run.
+    # The ASR model lives in the container's process and dies with it.
+    curl -s -m 5 -o /dev/null \
+        -d "{\"model\":\"$TEXT_MODEL\",\"keep_alive\":0}" \
+        "$OLLAMA_URL/api/generate" || true
+}
+
+case "${1:-}" in
+install)
+    [ $# -eq 3 ] || die "usage: tachygraf install MEDIA NOTES"
+    media=$(CDPATH= cd -- "$2" 2>/dev/null && pwd) ||
+        die "media folder does not exist: $2"
+    mkdir -p "$3" || die "cannot create notes folder: $3"
+    notes=$(CDPATH= cd -- "$3" && pwd)
+    if inside_vault "$notes"; then
+        die "refusing $notes: it is an Obsidian vault or lies inside one.
+  tachygraf writes to a staging folder; you move the notes into the vault.
+  Pick a folder outside the vault, for example ~/Documents/tachygraf-out"
+    fi
+    mkdir -p "$UNIT_DIR" "$REPO/work" "$REPO/state"
+    sed -e "s|@MEDIA@|$media|" -e "s|@NOTES@|$notes|" -e "s|@REPO@|$REPO|" \
+        "$REPO/quadlet/tachygraf.container" > "$UNIT"
+    systemctl --user daemon-reload
+    echo "unit written to $UNIT"
+    echo "  media (read-only): $media"
+    echo "  notes (staging):   $notes"
+    echo "  work and state:    $REPO"
+    ;;
+uninstall)
+    systemctl --user stop tachygraf 2>/dev/null || true
+    systemctl --user reset-failed tachygraf.service 2>/dev/null || true
+    unload_models
+    podman rm -f tachygraf >/dev/null 2>&1 || true
+    if [ -f "$UNIT" ]; then
+        notes=$(sed -n 's|^Volume=\(.*\):/out.*|\1|p' "$UNIT")
+        rm -f "$UNIT"
+        systemctl --user daemon-reload
+        echo "removed $UNIT"
+    else
+        echo "no unit installed"
+    fi
+    # Nothing below is touched: it is either the user's data or expensive to
+    # rebuild. Say where it is instead of deciding for them.
+    echo "kept, remove by hand if you want to:"
+    [ -n "${notes:-}" ] && echo "  notes      $notes"
+    echo "  work       $REPO/work      (extracted audio and segments)"
+    echo "  state      $REPO/state     (the job database and the logs)"
+    podman image exists tachygraf:latest &&
+        echo "  image      tachygraf:latest   (podman rmi tachygraf:latest)"
+    echo "  models     in Ollama           (ollama rm $TEXT_MODEL)"
+    ;;
+build)
+    podman build -t tachygraf:latest "$REPO"
+    ;;
+start)
+    preflight
+    systemctl --user reset-failed tachygraf.service 2>/dev/null || true
+    systemctl --user start tachygraf ||
+        die "start failed; see: journalctl --user -u tachygraf -n 30"
+    # The Gradio server takes a few seconds to bind.
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+        if curl -s -m 2 -o /dev/null "$URL"; then break; fi
+        sleep 1
+    done
+    curl -s -m 2 -o /dev/null "$URL" ||
+        die "container started but nothing answers on $URL; see: tachygraf logs"
+    echo "tachygraf is at $URL"
+    # The whole list is backgrounded and its output closed, not just
+    # xdg-open's: a subshell that outlives the script while still holding
+    # stdout makes 'tachygraf start | tee log' hang after it has already
+    # printed everything.
+    { command -v xdg-open >/dev/null 2>&1 && xdg-open "$URL"; } >/dev/null 2>&1 &
+    ;;
+stop)
+    systemctl --user stop tachygraf || true
+    unload_models
+    echo "stopped; the GPU is free"
+    ;;
+status)
+    if running; then
+        echo "running at $URL"
+    else
+        echo "not running"
+    fi
+    nvidia-smi --query-compute-apps=pid,used_memory --format=csv 2>/dev/null || true
+    ;;
+logs)
+    podman logs -f tachygraf
+    ;;
+cli)
+    shift
+    running || die "tachygraf is not running; 'tachygraf start' first"
+    podman exec -it tachygraf tachygraf "$@"
+    ;;
+*)
+    usage
+    exit 1
+    ;;
+esac

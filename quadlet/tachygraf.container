@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Mateusz <109816464+FPGArtktic@users.noreply.github.com>
+#
+# A template. 'bin/tachygraf install MEDIA NOTES' fills the three placeholders
+# in and writes the result to ~/.config/containers/systemd/. Copying this file
+# by hand works too, as long as @MEDIA@, @NOTES@ and @REPO@ are replaced with
+# absolute paths.
+[Unit]
+Description=tachygraf — recording to transcript and study notes
+
+[Container]
+Image=localhost/tachygraf:latest
+ContainerName=tachygraf
+UserNS=keep-id
+# 7861, not 7860: glosator has 7860, and both may be installed on one machine.
+PublishPort=7861:7860
+
+# The ASR stage runs faster-whisper inside the container, so the card has to
+# be visible there. This needs a CDI spec on the host:
+#   sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+# glosator never does this; its only GPU user is Ollama on the host.
+AddDevice=nvidia.com/gpu=all
+
+# Ollama runs on the host and listens on 127.0.0.1, which a container cannot
+# reach through any ordinary network. map-host-loopback points
+# host.containers.internal at the host's loopback, which is the narrowest way
+# in. See glosator's docs/DECISIONS.md for the measurements behind this.
+Network=pasta:--map-host-loopback,169.254.1.2
+Environment=OLLAMA_URL=http://host.containers.internal:11434
+
+Volume=@MEDIA@:/in:ro
+Volume=@NOTES@:/out:Z
+Volume=@REPO@/work:/work:Z
+Volume=@REPO@/state:/state:Z
+
+Environment=TACHYGRAF_TEXT_MODEL=qwen2.5:32b
+Environment=TACHYGRAF_ASR_MODEL=large-v3
+Environment=TZ=Europe/Warsaw
+
+[Service]
+# On demand only. tachygraf is a batch job: it must not start at login and must
+# not resurrect itself, because the GPU and the machine are shared with other
+# local tools. Start it with 'bin/tachygraf start', stop it when the recording
+# is done. There is deliberately no [Install] section, so nothing enables it.
+Restart=no
+TimeoutStartSec=300
