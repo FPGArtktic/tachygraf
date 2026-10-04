@@ -1,0 +1,15 @@
+CLAUDE.md
+
+# Mount points: the directories are needed, their contents are not ours.
+in/*
+!in/.gitkeep
+work/*
+!work/.gitkeep
+state/*
+!state/.gitkeep
+
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
