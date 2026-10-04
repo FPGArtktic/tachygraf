@@ -50,6 +50,24 @@ def test_natural_order_puts_nine_before_ten() -> None:
     ]
 
 
+def test_natural_order_mixes_numbered_and_unnumbered_names() -> None:
+    """The real course folder, which crashed the first version with TypeError.
+
+    "120V ..." starts with a number and "AC Basics ..." does not, and a key
+    that puts a bare int beside a bare str cannot compare the two.
+    """
+    names = [
+        "AC Basics; Learn All About Alternating Current.m4a",
+        "120V 240V Electricity explained.m4a",
+        "3 Way Switches Explained.m4a",
+    ]
+    assert sorted(names, key=batch.natural_key) == [
+        "3 Way Switches Explained.m4a",
+        "120V 240V Electricity explained.m4a",
+        "AC Basics; Learn All About Alternating Current.m4a",
+    ]
+
+
 def test_find_media_walks_subfolders_in_reading_order(tmp_path: Path) -> None:
     """A downloaded playlist is often one folder per recording."""
     for name in ("10 - Ten/a.mp4", "2 - Two/a.mp4", "1 - One/a.m4a"):

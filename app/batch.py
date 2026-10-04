@@ -127,15 +127,22 @@ class Plan:
         return sum(item.duration_s for item in self.recordings)
 
 
-def natural_key(text: str) -> tuple:
+def natural_key(text: str) -> tuple[tuple[int, int, str], ...]:
     """Sort key that orders "9" before "10".
 
     A course is numbered, and a string sort puts lekcja-10 before lekcja-9,
     which then becomes the order the notes are generated in and the order they
     appear in every listing.
+
+    Every element is the same shape -- a tag, a number and a string -- because
+    the obvious version of this, ``int(part) if part.isdigit() else part``,
+    raises TypeError the moment one name starts with a digit and another does
+    not. A real course folder does exactly that: "120V 240V Electricity
+    explained" beside "AC Basics". Numbers sort before text, which is what
+    puts a numbered lecture ahead of an unnumbered one.
     """
     return tuple(
-        int(part) if part.isdigit() else part.casefold()
+        (0, int(part), "") if part.isdigit() else (1, 0, part.casefold())
         for part in re.split(r"(\d+)", text)
         if part != ""
     )
