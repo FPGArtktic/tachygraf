@@ -42,6 +42,14 @@ def test_generate_applies_the_configured_options(
     assert call["keep_alive"] == config.OLLAMA_KEEP_ALIVE
 
 
+def test_generate_asks_for_no_thinking(monkeypatch: pytest.MonkeyPatch) -> None:
+    """gemma4 thinks unless told not to, and its thinking spends NUM_PREDICT."""
+    fake = FakeClient()
+    monkeypatch.setattr(ollama, "client", lambda: fake)
+    ollama.generate("gemma4:31b", "a prompt")
+    assert fake.calls[0]["think"] is False
+
+
 def test_generate_rejects_an_empty_response(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ollama, "client", lambda: FakeClient("   "))
     with pytest.raises(ollama.OllamaUnavailable, match="empty response"):

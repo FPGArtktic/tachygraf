@@ -673,3 +673,22 @@ between its ends would be the parser's guess, not the model's citation.
 
 This makes the rule stricter than the day before: one `gemma3:27b` note from
 that run would now be rejected and retried on the next run.
+
+## 2026-10-30 — Every request asks for no thinking
+
+`ollama.generate` was copied from glosator, whose models never reasoned
+before answering, so it never said whether they should. gemma4 does unless
+told not to: asked without a `think` field, `gemma4:26b` and `gemma4:31b`
+both produced reasoning first, and Ollama lists thinking as their default
+(PILOT.md, 2026-10-30). Its tokens count against `NUM_PREDICT`.
+
+That matters more than the time it costs. At the pipeline's temperature,
+0.25, `gemma4:12b` thought through 8192 and then 16384 tokens on one window
+and answered nothing; its thinking was one glossary check repeated 24 times.
+With the model's own sampling (temperature 1) it finished, but the note
+writer's low temperature is there for faithfulness, and it stays.
+
+So `generate` sends `think: false`, always. `gemma3:27b` and `qwen2.5:32b`
+accept the field and answer as before. Thinking as a deliberate step — with
+its own sampling and its own budget, as a reviewer of finished notes rather
+than as the writer — is a separate decision, not taken.

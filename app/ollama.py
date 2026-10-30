@@ -4,7 +4,8 @@
 
 Copied from glosator. The ``images`` argument is gone with the vision pass it
 served: tachygraf has one model pass, and a slide is only ever described here
-if the speaker described it aloud.
+if the speaker described it aloud. ``generate`` also asks for no thinking,
+which glosator's models never did on their own (docs/DECISIONS.md).
 """
 
 from __future__ import annotations
@@ -48,11 +49,19 @@ def unload(model: str) -> None:
 
 
 def generate(model: str, prompt: str) -> str:
-    """One completion. Blocks for as long as ``OLLAMA_TIMEOUT_S`` allows."""
+    """One completion. Blocks for as long as ``OLLAMA_TIMEOUT_S`` allows.
+
+    Thinking is turned off explicitly, because gemma4 thinks unless told not
+    to, and its thinking counts against ``NUM_PREDICT``. At the pipeline's
+    temperature it can loop until that budget is gone and return nothing: a
+    glossary check repeated 24 times, measured on gemma4:12b (PILOT.md,
+    2026-10-30). Models without thinking accept the field and ignore it.
+    """
     try:
         response = client().generate(
             model=model,
             prompt=prompt,
+            think=False,
             keep_alive=config.OLLAMA_KEEP_ALIVE,
             options={
                 "num_ctx": config.NUM_CTX,
