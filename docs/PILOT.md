@@ -569,6 +569,50 @@ judge every item and glossary line of the `gemma3:27b` notes against window
 finished the first window, and the run was stopped. It produced no verdict,
 so nothing here says how well a model reviews a note.
 
+## 2026-10-30 — A thinking model as a reviewer of finished notes
+
+The verifier that did not finish on `qwen3:32b` (above), run again on
+`gemma4:26b` with thinking and the model's own sampling (temperature 1),
+`num_ctx` 24576, `num_predict` 16384. Ollama kept all 31 layers on the card
+and moved part of the experts to the CPU: 11.2 GiB of weights on the card,
+6.1 GiB in RAM. It judged the same `gemma3:27b` notes the review above was
+written for, item by item, with a verdict in JSON per item: supported, cited
+to the wrong paragraph (and which one), or unsupported; for each glossary
+line, the speaker's term, a standard term, or invented.
+
+It took 117, 120 and 129 s for the three notes, 11-14 thousand tokens each,
+most of them thinking, at 110 tokens per second: 366 s, more than
+`gemma4:31b` takes to write the notes (330 s).
+
+| the review said | verifier: supported | wrong paragraph | unsupported |
+| --- | --- | --- | --- |
+| sound (59) | 51 | 7 | 1 |
+| citation fault (22) | 1 | 20 | 1 |
+| content error (13) | 5 | 4 | 4 |
+
+- **Citations: good.** It found 20 of the review's 22 citation faults, and
+  six of its seven "wrong paragraph" verdicts on items the review had passed
+  are right: the review had accepted a citation that held half of a claim.
+  For the twelve items with no label it named the paragraph. One verdict was
+  wrong.
+- **Content: weak.** Four of the 13 errors it called unsupported (Armbian
+  among the immutable distributions, Coreboot on a Raspberry Pi, a cost the
+  speaker did not state, recipes defined from outside the window). Four more
+  it flagged only as a citation fault — "armies" twice, Secure Boot as a
+  Yocto feature, a hedge dropped — so re-citing them would keep the error.
+  Five it passed, among them the worst of the run: the parts of a
+  distribution given as the parts of the Yocto Project, and the meta-doom
+  joke as "the core layer".
+- **Glossary: no use.** All six invented Polish terms ("bootloader —
+  rozruch", "lista materiałów programowych") it called standard.
+- **False alarms: two.** One is the name repair seen above: "DEB" called
+  unsupported because the transcript has the misheard "DEP".
+
+Dropping what it calls unsupported would remove 4 of the 13 errors and 2
+sound items. As a citation repairer it would earn its time on a model that
+cites badly; as a fact checker it does not, and `gemma4:31b` already cites
+nearly everywhere. No review stage is added.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
@@ -577,10 +621,6 @@ These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
   reviewed item by item as `gemma3:27b` was above: one recording and one
   reviewer chose the default, and the gap between the two decides whether
   the 26B's speed is worth its error.
-- **A judge model checked against a human review.** The verifier above never
-  finished; one that fits the card (`gemma4:26b` or `gemma4:12b` with
-  thinking) can say in minutes how many of the review's errors it finds and
-  how many sound items it would drop.
 - **The CPU fallback on this machine**, `int8`, 8 threads: wall clock, and
   whether it loops the way `int8_float16` did on the card.
 - **How often a vocabulary costs a sentence.** Two recordings, one omission
