@@ -5,8 +5,14 @@ Nothing here is an estimate. A figure that has not been measured yet says so
 and stays empty until it has been, because the whole use of this file is that
 CLAUDE.md can cite it instead of guessing.
 
-Reference machine: Arch Linux, RTX 3050 Mobile (4 GB VRAM), 64 GB RAM, Ollama
-on the host at `127.0.0.1:11434`.
+Reference machine from 2026-10-30: Arch Linux (CachyOS kernel), RTX 5070 Ti
+(16 GB VRAM, compute capability 12.0, driver 615.78), Ryzen 7 7800X3D, 32 GB
+RAM, Ollama on the host at `127.0.0.1:11434`. The desktop is drawn on the
+NVIDIA card and holds 1.3–1.5 GB of it.
+
+The entries dated 2026-10-04 were measured on the previous one: a laptop with
+an RTX 3050 Mobile (4 GB VRAM) and 64 GB RAM. They stay as they were measured;
+where a later entry supersedes one, it says so.
 
 ## 2026-10-04 — The test suite and the extract stage
 
@@ -170,10 +176,72 @@ Open decision 6 asked for minutes per window and the rejection rate on
 transcript input. Minutes per window: ten, for a window at the small end of
 the budget. The rejection rate needs more than one window.
 
+## 2026-10-30 — Transcription on the RTX 5070 Ti, and the compute type
+
+The image, rebuilt for this machine with the `cuda` extra's new lower bounds:
+
+| measurement | value |
+| --- | --- |
+| `tachygraf:latest` | 11.3 GB |
+| ctranslate2, faster-whisper | 4.8.4, 1.2.1 |
+| nvidia-cublas-cu12, nvidia-cudnn-cu12 | 12.9.2.10, 9.27.0.42 |
+| tests on the host, Python 3.12 | 249 passing |
+
+The same recording as on 2026-10-04: the 11½-minute English diodes lecture,
+`.m4a`, 692 s. Each row is one run in a fresh container through the stage's
+own `_run_model`, language `en`, beam 5, VAD on; the wall clock includes
+loading the model. VRAM is the card's used memory sampled every 100 ms, peak
+minus what the desktop held before the run. "Repeated 6-grams" counts six-word
+sequences that occur more than once; the speaker's own repetition puts a
+clean transcript of this lecture at 8 or 9.
+
+| model | compute | wall clock | × real time | segments | words | peak VRAM | repeated 6-grams |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `large-v3-turbo` | `int8_float16` | 27.8 s | 25× | 309 | 2173 | 1423 MiB | 9 |
+| `large-v3-turbo` | `float16` | **26.5 s** | 26× | 310 | 2198 | 2516 MiB | 9 |
+| `large-v3` | `int8_float16` | 60.9 s | 11× | 191 | 2311 | 4085 MiB | **63** |
+| `large-v3` | `float16` | **57.2 s** | 12× | 167 | 2210 | 5517 MiB | 8 |
+
+What the table says:
+
+- **`int8_float16` is wrong on this card, and silently.** `large-v3` produced
+  repetition loops the audio does not contain — "The electrons are also
+  called electrons. The electrons are also called", "the diode acts as an
+  intrusion. Therefore the diode acts as an intrusion", a migration sentence
+  three times over — and no exception, so the CPU fallback had nothing to
+  catch. `large-v3-turbo` at `int8_float16` dropped the sentence "…this side
+  when acting as an insulator. You can see that the diode can only act as an
+  insulator…", which float16 kept. On the laptop's Ampere card the same model
+  and compute type gave 2198 words and 9 repeated 6-grams, so it is this
+  card's int8 path that fails. `ASR_COMPUTE_GPU` is now `float16`; see
+  docs/DECISIONS.md.
+- **`large-v3` is no longer the slow choice.** 57 seconds on the card against
+  988 seconds on the laptop's CPU. Open decision 1's trade — accuracy against
+  waiting — is gone on this machine: the accurate model costs half a minute
+  more than turbo on an eleven-minute recording.
+- `large-v3-turbo` takes the same 26–28 s here as on the laptop's 3050. On a
+  recording this short the wall clock is mostly loading the model and the
+  VAD pass, not inference; a 60-minute recording is what will separate the
+  cards.
+- `config.ASR_MIN_FREE_MB` is these peaks converted to the MB `gpu_free_mb`
+  reports (5785 MB and 2638 MB) plus a margin: 6500 and 3000.
+- `large-v3` at float16 has one error the others do not: the closing
+  sentence's list of social networks comes out as "Facebook, Instagram,
+  Twitter and Facebook. You can also follow us on Twitter". Nothing in the
+  lecture itself.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
 
+- **Generation on the RTX 5070 Ti**, `qwen2.5:32b` on the diodes window: how
+  many of its layers Ollama puts on the card with the desktop on it, and
+  minutes per window against the laptop's 592 s. Then `qwen3:32b` and
+  `gemma3:27b` on the same window and reviewed the same way, because the card
+  makes a same-class comparison minutes rather than hours. The Polish glossary
+  is the thing to read first in each.
+- **The CPU fallback on this machine**, `int8`, 8 threads: wall clock, and
+  whether it loops the way `int8_float16` did on the card.
 - **Generation**, `qwen2.5:32b`: minutes per window, and the figure CLAUDE.md's
   open decision 6 asks for — how many responses the parser rejected and which
   rule each rejection broke. One window is not a sample; a 60-minute recording
