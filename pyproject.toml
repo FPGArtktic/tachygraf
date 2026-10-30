@@ -25,10 +25,13 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 # host test suite never touches the card.
 #
 # ctranslate2 4.8 is built against cuBLAS 12 and cuDNN 9. Both majors are
-# pinned: a cuDNN 10 wheel would install cleanly and fail at run time.
+# pinned: a cuDNN 10 wheel would install cleanly and fail at run time. The
+# minors are the first releases with kernels for compute capability 12.0, the
+# reference machine's RTX 5070 Ti: cuBLAS from CUDA 12.8, cuDNN 9.7. Anything
+# older installs cleanly and fails on that card at the first inference.
 cuda = [
-    "nvidia-cublas-cu12>=12.3,<13",
-    "nvidia-cudnn-cu12>=9.1,<10",
+    "nvidia-cublas-cu12>=12.8,<13",
+    "nvidia-cudnn-cu12>=9.7,<10",
 ]
 
 [project.scripts]
