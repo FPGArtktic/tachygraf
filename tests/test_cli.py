@@ -98,6 +98,13 @@ def test_the_language_reaches_the_job_parameters() -> None:
     assert json.loads(db.recent_jobs(_conn())[0]["params"])["language"] == "pl"
 
 
+def test_the_vocabulary_reaches_the_job_parameters() -> None:
+    cli.main(["add", "/in/a.mp4", "--slug", "lec4"])
+    cli.main(["transcribe", "--source", "lec4", "--vocabulary", "Claude Code"])
+    params = json.loads(db.recent_jobs(_conn())[0]["params"])
+    assert params["vocabulary"] == "Claude Code"
+
+
 def test_force_clears_the_previous_stage_rows() -> None:
     cli.main(["add", "/in/a.mp4", "--slug", "lec4"])
     conn = _conn()

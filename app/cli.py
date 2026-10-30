@@ -94,6 +94,13 @@ def _parser() -> argparse.ArgumentParser:
         default=config.LANGUAGE,
         help=f"spoken language, or 'auto' (default: {config.LANGUAGE})",
     )
+    batch.add_argument(
+        "--vocabulary",
+        default="",
+        help="names and terms the recording uses, comma-separated, e.g. "
+        "'Claude Code, CLAUDE.md, Anthropic'. A hint to speech recognition, "
+        "spelled and cased exactly as the transcript should have them",
+    )
     batch.add_argument("--asr-model", default=config.ASR_MODEL)
     batch.add_argument("--model", default=config.TEXT_MODEL, help="the text model")
     batch.add_argument(
@@ -129,6 +136,13 @@ def _parser() -> argparse.ArgumentParser:
                 help="spoken language as a two-letter code, or 'auto'. Naming "
                 "it is faster and safer than letting the model guess from the "
                 f"first thirty seconds (default: {config.LANGUAGE})",
+            )
+            stage_parser.add_argument(
+                "--vocabulary",
+                default="",
+                help="names and terms the recording uses, comma-separated, e.g. "
+                "'Claude Code, CLAUDE.md, Anthropic'. A hint to speech recognition, "
+                "spelled and cased exactly as the transcript should have them",
             )
 
     sub.add_parser("queue", help="list jobs")
@@ -176,6 +190,7 @@ def _batch(conn, args) -> int:
         domain=args.domain or config.DEFAULT_DOMAIN,
         out_dir=args.out.expanduser().resolve() if args.out else None,
         language=args.language,
+        vocabulary=args.vocabulary,
         asr_model=args.asr_model,
         text_model=args.model,
     )
@@ -197,6 +212,7 @@ def _queue_stage(conn, args) -> int:
     params: dict[str, object] = {"force": args.force}
     if args.command == "transcribe":
         params["language"] = args.language
+        params["vocabulary"] = args.vocabulary
 
     job_id = db.enqueue(conn, source_id, args.command, model, json.dumps(params))
     print(f"job {job_id} queued: {args.command} on {args.source} with {model}")

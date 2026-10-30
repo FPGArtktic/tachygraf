@@ -311,12 +311,15 @@ def test_queue_passes_the_models_and_the_language_through(
         conn,
         batch.plan(tmp_path),
         language="pl",
+        vocabulary="Claude Code, Anthropic",
         asr_model="large-v3-turbo",
         text_model="gemma3:12b-it-qat",
     )
     jobs = {job["stage"]: job for job in db.recent_jobs(conn)}
     assert jobs["transcribe"]["model"] == "large-v3-turbo"
-    assert json.loads(jobs["transcribe"]["params"])["language"] == "pl"
+    params = json.loads(jobs["transcribe"]["params"])
+    assert params["language"] == "pl"
+    assert params["vocabulary"] == "Claude Code, Anthropic"
     assert jobs["generate"]["model"] == "gemma3:12b-it-qat"
 
 

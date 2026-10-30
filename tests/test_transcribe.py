@@ -209,6 +209,39 @@ def test_auto_means_the_model_decides(
     assert model.calls[0]["language"] is None
 
 
+def test_the_vocabulary_reaches_the_model_as_hotwords(
+    monkeypatch: pytest.MonkeyPatch, on_the_cpu
+) -> None:
+    """Measured: "Claude Code" 2 times without it, 39 with it, on one talk."""
+    model = FakeModel([FakeSegment(0.0, 2.0, "I created Claude Code.")])
+    _install(monkeypatch, model)
+    _segments, reported = transcribe.transcribe_audio(
+        _audio(), vocabulary="Claude, Claude Code"
+    )
+    assert model.calls[0]["hotwords"] == "Claude, Claude Code"
+    assert reported["vocabulary"] == "Claude, Claude Code"
+
+
+def test_no_vocabulary_means_no_hotwords(
+    monkeypatch: pytest.MonkeyPatch, on_the_cpu
+) -> None:
+    """An empty string is not a hint; faster-whisper is given None."""
+    model = FakeModel([FakeSegment(0.0, 2.0, "Hello.")])
+    _install(monkeypatch, model)
+    transcribe.transcribe_audio(_audio())
+    assert model.calls[0]["hotwords"] is None
+
+
+def test_the_asr_child_takes_the_vocabulary_from_its_arguments(
+    monkeypatch: pytest.MonkeyPatch, on_the_cpu
+) -> None:
+    model = FakeModel([FakeSegment(0.0, 2.0, "Hello.")])
+    _install(monkeypatch, model)
+    argv = ["--slug", "lec4", "--audio", str(_audio()), "--vocabulary", "Anthropic"]
+    assert transcribe.main(argv) == 0
+    assert model.calls[0]["hotwords"] == "Anthropic"
+
+
 def test_whisper_is_not_conditioned_on_its_own_text(
     monkeypatch: pytest.MonkeyPatch, on_the_cpu
 ) -> None:
@@ -521,7 +554,7 @@ def test_produce_segments_spawns_a_child_with_the_stage_arguments(
 
     monkeypatch.setattr(transcribe.subprocess, "Popen", popen)
     segments, reported = transcribe.produce_segments(
-        "lec4", Path("/work/lec4/audio.wav"), "large-v3", "en"
+        "lec4", Path("/work/lec4/audio.wav"), "large-v3", "en", "Claude Code"
     )
 
     argv = seen[0].argv
@@ -529,6 +562,7 @@ def test_produce_segments_spawns_a_child_with_the_stage_arguments(
     assert "--slug" in argv and "lec4" in argv
     assert "large-v3" in argv
     assert "en" in argv
+    assert argv[argv.index("--vocabulary") + 1] == "Claude Code"
     assert segments[0].text == "Done."
     assert reported["language"] == "pl"
 

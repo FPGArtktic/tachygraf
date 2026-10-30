@@ -570,3 +570,51 @@ clean transcripts from two ASR engines and every true loop marked.
 
 The check runs on the whole transcript, not per segment, because a loop of a
 long sentence was split across three segments of under a second each.
+
+## 2026-10-30 — A recording's vocabulary goes to the speech model, and only there
+
+The 28-minute talk was about Claude Code. Whisper wrote it as "Quadcode",
+"QuadCode", "Cloud Code", "Quad", "ClaudeMD" and "QuadMD" — about a dozen
+spellings for two names — and both text models carried them into the notes, titles
+included: "01 Quadcode Practical Tips and Tricks".
+
+A text model could have guessed "Claude Code" from context, and the pipeline
+deliberately does not let it. The transcript is verbatim, with no model
+between the ASR and the file; the note prompt says to use only what the
+source contains and to give each thing the one name the speaker used. A model
+that corrects names it believes are wrong is the same mechanism as a model
+that invents fluently, and it cannot tell a misheard name from an unusual one
+that was actually said. So the correction has to happen where the sound is:
+in recognition, as a hint, not after it, as an edit.
+
+The transcribe stage therefore takes a vocabulary per recording — a
+comma-separated string, like the language a job parameter — and passes it to
+faster-whisper as `hotwords`, which goes into the prompt of every 30-second
+window. Measured on the talk (PILOT.md, 2026-10-30): with "Claude, Claude
+Code, CLAUDE.md, Anthropic", "Claude Code" appeared 39 times and "Cloud
+Code" once, against 2 and 23 without it.
+
+Two things the measurement showed that the interface has to say:
+
+- The list is taken literally, case included. With "Claude Code, CLAUDE.md,
+  Anthropic" — no "Claude" on its own — the model wrote the name itself as
+  "CLAUDE" fifty times. The help
+  text and the README say to spell each entry as the transcript should have
+  it.
+- A different prompt is a different decoding, and it is not free. The run
+  with the hint had two faults the run without it did not: a loop ("you run
+  it" eleven times), which the loop check marks, and a 25-word sentence left
+  out with nothing in its place ("With Claude Code, you can just ask Claude
+  Code and it'll explore the code base, it'll answer these kind of
+  questions"), which nothing marks. The run without the hint lost no passage
+  of eight words or more against Parakeet's transcript of the same audio.
+
+So the vocabulary is opt-in and empty by default. On this talk it traded one
+unmarked missing sentence for 39 correct names in place of none, and the
+names are what the notes are built on; on a recording whose terms Whisper
+already knows it would buy nothing and cost the same risk. One recording is
+not enough to say how often the omission happens, which is a PILOT.md item.
+
+The vocabulary is recorded in `segments.json` under `asr.vocabulary`, so a
+transcript can be traced to the hint it was made with. It is empty by default,
+and empty means no hint at all rather than an empty prompt.

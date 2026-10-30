@@ -161,6 +161,7 @@ def _do_transcribe(conn: sqlite3.Connection, job: sqlite3.Row) -> None:
         Path(source["media_path"]),
         model=model,
         language=params.get("language") or config.LANGUAGE,
+        vocabulary=params.get("vocabulary") or "",
         out_dir=_out_dir(source),
     )
     db.job_progress(conn, job["id"], 1, 1)

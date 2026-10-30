@@ -109,6 +109,22 @@ def test_an_unknown_stage_fails_the_job_rather_than_the_worker(conn, source_id) 
     assert "unknown stage polish" in job["error"]
 
 
+def test_the_transcribe_stage_hands_on_the_vocabulary(
+    conn, source_id, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+
+    def run(slug, media_path, **kwargs):
+        seen.update(kwargs)
+        return config.OUT_DIR / slug / transcribe.TRANSCRIPT_NOTE
+
+    monkeypatch.setattr(transcribe, "run", run)
+    _job(conn, source_id, "transcribe", "large-v3", vocabulary="Claude Code")
+    _run_next(conn)
+    assert db.recent_jobs(conn)[0]["status"] == db.DONE
+    assert seen["vocabulary"] == "Claude Code"
+
+
 def test_the_extract_stage_records_the_audio_it_wrote(
     conn, source_id, monkeypatch: pytest.MonkeyPatch
 ) -> None:

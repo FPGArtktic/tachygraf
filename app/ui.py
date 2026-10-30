@@ -271,6 +271,12 @@ def build() -> gr.Blocks:
                         value=config.ASR_MODEL,
                         label="Transcription model",
                     )
+                vocabulary = gr.Textbox(
+                    label="Vocabulary: names and terms the recording uses, "
+                    "spelled as the transcript should have them (a hint to "
+                    "transcription, optional)",
+                    placeholder="Claude Code, CLAUDE.md, Anthropic",
+                )
                 with gr.Row():
                     model = gr.Dropdown(
                         [config.TEXT_MODEL], value=config.TEXT_MODEL, label="Text model"
@@ -395,6 +401,7 @@ def build() -> gr.Blocks:
             domain_value,
             choice,
             language_value,
+            vocabulary_value,
             asr_value,
             model_value,
         ):
@@ -412,6 +419,7 @@ def build() -> gr.Blocks:
                 slug=slug_value,
                 domain=domain_value,
                 language=language_value,
+                vocabulary=vocabulary_value,
                 asr_model=asr_value,
                 model=model_value,
             )
@@ -425,7 +433,12 @@ def build() -> gr.Blocks:
                     source_id,
                     "transcribe",
                     asr_value,
-                    json.dumps({"language": language_value}),
+                    json.dumps(
+                        {
+                            "language": language_value,
+                            "vocabulary": vocabulary_value.strip(),
+                        }
+                    ),
                 ),
                 db.enqueue(conn, source_id, "chunk", "none", json.dumps({})),
                 db.enqueue(conn, source_id, "generate", model_value, json.dumps({})),
@@ -456,6 +469,7 @@ def build() -> gr.Blocks:
             notes,
             domain_value,
             language_value,
+            vocabulary_value,
             asr_value,
             model_value,
         ):
@@ -468,6 +482,7 @@ def build() -> gr.Blocks:
                 domain=domain_value.strip() or config.DEFAULT_DOMAIN,
                 out_dir=resolve_out_dir(notes),
                 language=language_value,
+                vocabulary=vocabulary_value.strip(),
                 asr_model=asr_value,
                 text_model=model_value,
             )
@@ -505,6 +520,7 @@ def build() -> gr.Blocks:
                 notes_dir,
                 domain,
                 language,
+                vocabulary,
                 asr_model,
                 model,
             ],
@@ -519,10 +535,13 @@ def build() -> gr.Blocks:
             [status, jobs],
         )
         queue_transcribe.click(
-            lambda a, lang, r, n, t, s, d, c: _queue(
-                "transcribe", a, {"language": lang}, r, n, t, s, d, c
+            lambda a, lang, voc, r, n, t, s, d, c: _queue(
+                "transcribe",
+                a,
+                {"language": lang, "vocabulary": voc.strip()},
+                *(r, n, t, s, d, c),
             ),
-            [asr_model, language, *identity],
+            [asr_model, language, vocabulary, *identity],
             [status, jobs],
         )
         queue_chunk.click(
@@ -542,7 +561,7 @@ def build() -> gr.Blocks:
         )
         run_all.click(
             on_run_all,
-            [*identity, language, asr_model, model],
+            [*identity, language, vocabulary, asr_model, model],
             [status, jobs],
         )
         stop_button.click(on_stop, stop_id, [status, jobs])

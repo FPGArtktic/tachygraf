@@ -201,6 +201,7 @@ def _run_model(
     device: str,
     compute_type: str,
     language: str,
+    vocabulary: str = "",
 ) -> tuple[list[Segment], object]:
     """One attempt on one device. The model is dropped before this returns.
 
@@ -217,6 +218,9 @@ def _run_model(
             beam_size=config.ASR_BEAM_SIZE,
             vad_filter=config.ASR_VAD_FILTER,
             condition_on_previous_text=config.ASR_CONDITION_ON_PREVIOUS_TEXT,
+            # The recording's own names, as a hint to recognition. Given to the
+            # ASR model and to nothing after it: see DECISIONS.md.
+            hotwords=vocabulary or None,
             word_timestamps=False,
         )
         segments = [
@@ -241,6 +245,7 @@ def transcribe_audio(
     audio: Path,
     model_name: str = config.ASR_MODEL,
     language: str = config.LANGUAGE,
+    vocabulary: str = "",
 ) -> tuple[list[Segment], dict[str, object]]:
     """Run the ASR model over the extracted WAV. Returns segments and the report.
 
@@ -264,7 +269,9 @@ def transcribe_audio(
     samples = read_wav(audio)
 
     try:
-        segments, info = _run_model(samples, model_name, device, compute_type, language)
+        segments, info = _run_model(
+            samples, model_name, device, compute_type, language, vocabulary
+        )
     except Exception as error:
         if device == "cpu":
             raise
@@ -278,7 +285,9 @@ def transcribe_audio(
             model=model_name,
         )
         device, compute_type = "cpu", config.ASR_COMPUTE_CPU
-        segments, info = _run_model(samples, model_name, device, compute_type, language)
+        segments, info = _run_model(
+            samples, model_name, device, compute_type, language, vocabulary
+        )
 
     reported = {
         "language": getattr(info, "language", None),
@@ -290,6 +299,7 @@ def transcribe_audio(
         "compute_type": compute_type,
         "device_reason": reason,
         "model": model_name,
+        "vocabulary": vocabulary,
     }
     log.event(
         "transcribe",
@@ -325,6 +335,7 @@ def produce_segments(
     audio: Path,
     model_name: str,
     language: str,
+    vocabulary: str = "",
 ) -> tuple[list[Segment], dict[str, object]]:
     """Transcribe in a child process, which is what actually frees the card.
 
@@ -360,6 +371,8 @@ def produce_segments(
         model_name,
         "--language",
         language,
+        "--vocabulary",
+        vocabulary,
     ]
     log.event("transcribe", "starting the ASR child", slug=slug, model=model_name)
     try:
@@ -590,6 +603,7 @@ def run(
     *,
     model: str = config.ASR_MODEL,
     language: str = config.LANGUAGE,
+    vocabulary: str = "",
     out_dir: Path | str | None = None,
     duration_s: float | None = None,
 ) -> Path:
@@ -600,7 +614,7 @@ def run(
             f"no audio at {audio}; run the extract stage for {slug} first"
         )
 
-    segments, reported = produce_segments(slug, audio, model, language)
+    segments, reported = produce_segments(slug, audio, model, language, vocabulary)
     if not segments:
         # Silence, the wrong audio track, or a VAD gate that closed over the
         # whole file. Either way there is nothing to make notes from, and an
@@ -659,10 +673,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audio", required=True, type=Path)
     parser.add_argument("--model", default=config.ASR_MODEL)
     parser.add_argument("--language", default=config.LANGUAGE)
+    parser.add_argument("--vocabulary", default="")
     args = parser.parse_args(argv)
 
     config.ensure_dirs()
-    segments, reported = transcribe_audio(args.audio, args.model, args.language)
+    segments, reported = transcribe_audio(
+        args.audio, args.model, args.language, args.vocabulary
+    )
     write_segments(args.slug, segments, reported)
     return 0
 

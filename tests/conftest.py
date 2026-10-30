@@ -54,8 +54,10 @@ def asr_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
     subprocess.Popen instead; everything else replaces the hop.
     """
 
-    def inline(slug, audio, model_name, language):
-        segments, reported = transcribe.transcribe_audio(audio, model_name, language)
+    def inline(slug, audio, model_name, language, vocabulary=""):
+        segments, reported = transcribe.transcribe_audio(
+            audio, model_name, language, vocabulary
+        )
         transcribe.write_segments(slug, segments, reported)
         return segments, reported
 

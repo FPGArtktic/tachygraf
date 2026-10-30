@@ -140,6 +140,29 @@ bin/tachygraf cli index      --source lec4
 bin/tachygraf cli queue
 ```
 
+### Names the speech model does not know
+
+Speech recognition has never heard of most product names, people and
+acronyms in a specialist lecture, and writes what they sound like: a talk
+about Claude Code came out as "Quadcode", "Cloud Code" and "QuadMD". Give the
+transcribe stage the recording's own names, spelled and cased exactly as the
+transcript should have them:
+
+```
+bin/tachygraf cli transcribe --source talk --language en \
+    --vocabulary "Claude, Claude Code, CLAUDE.md, Anthropic"
+```
+
+The same option exists on `batch` and as a field in the browser. It is a hint
+to recognition, not a find-and-replace, and it is taken literally: a list
+with "CLAUDE.md" but no "Claude" on its own made the model write the name
+itself as "CLAUDE". It is also not free: a different hint is a different
+decoding, and on the talk above the run with it left out one sentence that
+the run without it kept. Use it when the names matter, and leave it empty
+otherwise. Nothing
+after the speech model corrects names, by design; the note model is told to
+use only what the transcript says.
+
 ### A whole course at once
 
 A folder of recordings becomes one set of notes per recording, each in its own

@@ -395,6 +395,7 @@ def queue(
     domain: str = config.DEFAULT_DOMAIN,
     out_dir: Path | None = None,
     language: str = config.LANGUAGE,
+    vocabulary: str = "",
     asr_model: str = config.ASR_MODEL,
     text_model: str = config.TEXT_MODEL,
 ) -> list[int]:
@@ -422,7 +423,7 @@ def queue(
                 source_id,
                 "transcribe",
                 asr_model,
-                json.dumps({"language": language}),
+                json.dumps({"language": language, "vocabulary": vocabulary}),
             ),
             db.enqueue(conn, source_id, "chunk", "none", json.dumps({})),
             db.enqueue(conn, source_id, "generate", text_model, json.dumps({})),
