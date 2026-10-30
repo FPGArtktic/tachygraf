@@ -123,6 +123,15 @@ def test_the_asr_vram_requirements_are_measured_per_model() -> None:
     assert set(ui.ASR_MODELS) <= set(config.ASR_MIN_FREE_MB)
 
 
+def test_the_card_does_not_run_whisper_in_int8() -> None:
+    """int8_float16 looped and dropped sentences on the RTX 5070 Ti, silently.
+
+    No exception, so the CPU fallback never saw it; only reading the transcript
+    did. See docs/DECISIONS.md, 2026-10-30.
+    """
+    assert "int8" not in config.ASR_COMPUTE_GPU
+
+
 def test_the_prompt_version_is_an_integer_for_the_frontmatter() -> None:
     assert isinstance(config.PROMPT_VERSION, int)
     assert config.PROMPT_VERSION >= 1

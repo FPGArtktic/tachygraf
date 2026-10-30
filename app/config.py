@@ -76,10 +76,15 @@ WHISPER_DIR: Path = _path("TACHYGRAF_WHISPER_DIR", "/opt/models/whisper")
 # produces a whole transcript in another language.
 LANGUAGE: str = os.environ.get("TACHYGRAF_LANGUAGE", "auto")
 
-# int8_float16 on the card: large-v3 is 1.5 GB that way, against 3.1 GB in
-# float16, which does not fit a 4 GB laptop card beside anything else. On the
-# CPU float16 is not implemented, so the fallback uses plain int8.
-ASR_COMPUTE_GPU: str = "int8_float16"
+# float16 on the card, because int8_float16 corrupts the transcript on the
+# reference RTX 5070 Ti without raising anything. Measured on the diodes
+# recording: large-v3 at int8_float16 wrote "The electrons are also called
+# electrons. The electrons are also called" and three more loops of that kind,
+# and large-v3-turbo at int8_float16 dropped a sentence float16 kept. float16
+# was no slower for either model. int8_float16 was only ever chosen to fit a
+# 4 GB laptop card (see docs/DECISIONS.md, 2026-10-30). On the CPU float16 is
+# not implemented, so the fallback uses plain int8.
+ASR_COMPUTE_GPU: str = "float16"
 ASR_COMPUTE_CPU: str = "int8"
 
 # How much of the card a model needs before the stage will put it there. Per

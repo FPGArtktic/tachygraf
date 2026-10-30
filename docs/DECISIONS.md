@@ -439,3 +439,36 @@ wants the same one — would relax a non-negotiable for a saving that small.
 Stage-grouped order (every transcription, then every generation) would give
 all the transcripts sooner and is a one-line change in `batch.queue` if a long
 course ever makes that the better trade.
+
+## 2026-10-30 — Whisper runs in float16 on the card, because int8 corrupted it
+
+`ASR_COMPUTE_GPU` was `int8_float16` for one reason: `large-v3` in float16 did
+not fit a 4 GB card. On the RTX 5070 Ti the same setting corrupts the
+transcript, and does it without raising anything.
+
+Measured on the diodes recording (PILOT.md, 2026-10-30): `large-v3` at
+`int8_float16` wrote loops such as "The electrons are also called electrons.
+The electrons are also called" and "the diode acts as an intrusion. Therefore
+the diode acts as an intrusion", 63 repeated six-word sequences against 8 at
+float16 — 8 being how often the speaker actually repeats himself.
+`large-v3-turbo` at `int8_float16` dropped a sentence float16 kept. float16
+was no slower for either model, and at 5.8 GB peak for `large-v3` there is no
+memory reason left for int8.
+
+The fault belongs to this card's int8 path, not to int8 as such. On the
+laptop's RTX 3050 (Ampere) `large-v3-turbo` at `int8_float16` gave 2198 words
+and 9 repeated six-word sequences; on this card float16 gives the same 2198
+and 8, and `int8_float16` gives 2173.
+
+The failure matters more than its size. The CPU fallback exists for a card
+that refuses — out of memory, missing libraries — and it catches exceptions.
+A card that computes wrongly raises nothing, the stage reports success, and
+the transcript is the one file in the output whose contract is "verbatim, no
+model between the ASR and this file". Reports from other RTX 50 users name
+`int8_float16` as failing with `CUBLAS_STATUS_NOT_SUPPORTED`; here, with
+cuBLAS 12.9 and CTranslate2 4.8.4, it did not fail, which is worse.
+
+A test asserts that the card's compute type contains no `int8`, so the setting
+cannot drift back with a copy from an older config. The CPU path stays `int8`:
+float16 is not implemented there. It has not been checked for loops on this
+machine, and no CPU transcript from the laptop was kept to check.
