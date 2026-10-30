@@ -318,6 +318,41 @@ def test_a_confident_segment_carries_no_marker() -> None:
     assert not built[0].unclear
 
 
+def test_a_repetition_loop_is_marked_unclear_despite_its_confidence() -> None:
+    """Measured: eleven "you run it" at -0.20, in place of what was said."""
+    loop = "So you start Claude, you download it" + ", you run it" * 11 + "."
+    built = transcribe.paragraphs(
+        [
+            transcribe.Segment(0.0, 2.0, "There is no setup.", -0.2),
+            transcribe.Segment(2.1, 30.0, loop, -0.2),
+        ]
+    )
+    assert built[0].text == f"There is no setup. {loop} [unclear]"
+
+
+def test_a_speaker_repeating_a_phrase_is_not_a_loop() -> None:
+    """Real speech, from the same talk; its repeats add six words at most."""
+    said = "You just say use this tool and this tool and this tool and this tool."
+    built = transcribe.paragraphs([transcribe.Segment(0.0, 5.0, said, -0.2)])
+    assert transcribe.UNCLEAR not in built[0].text
+
+
+def test_a_loop_across_segments_marks_every_segment_it_runs_through() -> None:
+    """A 24-word sentence, once per segment, three segments under a second each."""
+    sentence = (
+        "keep it as short as you can and for example in our code base we have "
+        "a lot of context so we're going to"
+    )
+    segments = [
+        transcribe.Segment(0.0, 3.0, "Try to keep it pretty short.", -0.2),
+        transcribe.Segment(3.0, 3.5, sentence, -0.25),
+        transcribe.Segment(3.5, 4.5, sentence, -0.25),
+        transcribe.Segment(4.5, 5.5, sentence, -0.25),
+    ]
+    assert transcribe.looping(segments) == {1, 2, 3}
+    assert transcribe.paragraphs(segments)[0].text.count(transcribe.UNCLEAR) == 3
+
+
 def test_no_segments_means_no_paragraphs() -> None:
     assert transcribe.paragraphs([]) == []
 

@@ -147,6 +147,18 @@ ASR_CONDITION_ON_PREVIOUS_TEXT: bool = False
 # OLLAMA_TIMEOUT_S.
 ASR_TIMEOUT_S: int = 21600
 
+# A run of words said back to back more than once is marked "[unclear]" when
+# the copies after the first add up to at least this many words. Measured over
+# every transcript in PILOT.md, 2026-10-30: the six loops Whisper wrote added
+# 12 to 33 words each, and the speakers' own repetitions ("this tool and this
+# tool and this tool") added at most 6. Ten sits between the two.
+LOOP_MIN_REPEATED_WORDS: int = 10
+
+# The longest run of words the loop check compares. The longest loop measured
+# was a 30-word sentence; a longer run said twice is a paragraph repeated,
+# which a speaker may do on purpose and which is not a decoding fault.
+LOOP_MAX_RUN_WORDS: int = 40
+
 # A segment whose average token log probability is below this is marked
 # "[unclear]" in the transcript, and the prompt forbids completing such a
 # passage from the model's own knowledge. A guess until PILOT.md: healthy

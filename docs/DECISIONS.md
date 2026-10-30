@@ -541,3 +541,32 @@ is visible in the transcript, a loop that replaces what was said is not.
 
 This does not stop a loop inside a single window, which happens without any
 prompt from earlier windows; that is a separate guard.
+
+## 2026-10-30 — A repetition loop is marked unclear, measured by its extra words
+
+Turning off conditioning on previous text stops a loop being carried from one
+window to the next, not a loop inside one window. With a vocabulary hint in
+the prompt, `large-v3` wrote "you run it" eleven times in place of "you start
+it, there's no indexing, you don't have to wait, you can just use it right
+away", in a 33-second segment with an average log probability of -0.20. The
+`[unclear]` check on log probability did not see it, and nothing else would
+have: the transcript would have carried the loop as speech, and a note could
+have cited it.
+
+So `transcribe.looping` looks at the words. A run of two to
+`LOOP_MAX_RUN_WORDS` words said back to back is a loop when the copies after
+the first add up to `LOOP_MIN_REPEATED_WORDS` or more. Every segment the run
+passes through is marked `[unclear]`, which the note prompt already treats as
+"report as unclear, do not complete". The marker is added, the words are not
+changed, as with the existing marker.
+
+The threshold is counted in extra words, not in copies, because the two
+failure shapes differ: a short phrase many times ("you run it" ×11, 30 extra
+words) and a long sentence twice (24 words, 24 extra). The six loops in the
+transcripts measured on 2026-10-30 added 12 to 33 words; the speakers' own
+repetitions in the same transcripts added at most 6 ("this tool and this tool
+and this tool and this tool"). Ten sits between, with no false mark in eight
+clean transcripts from two ASR engines and every true loop marked.
+
+The check runs on the whole transcript, not per segment, because a loop of a
+long sentence was split across three segments of under a second each.

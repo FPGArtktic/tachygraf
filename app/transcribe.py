@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import re
 import subprocess
 import sys
 import wave
@@ -447,43 +448,102 @@ def paragraphs(segments: list[Segment]) -> list[Paragraph]:
     segments must give the same labels, which is why it takes the segments and
     nothing else.
     """
+    looped = looping(segments)
     built: list[Paragraph] = []
-    current: list[Segment] = []
+    current: list[int] = []
 
     def close() -> None:
         if not current:
             return
-        text = " ".join(_marked(segment) for segment in current)
+        text = " ".join(_marked(segments[i], i in looped) for i in current)
         built.append(
             Paragraph(
                 label=label_for(len(built) + 1),
-                start=current[0].start,
-                end=current[-1].end,
+                start=segments[current[0]].start,
+                end=segments[current[-1]].end,
                 text=" ".join(text.split()),
             )
         )
         current.clear()
 
-    for segment in segments:
+    for index, segment in enumerate(segments):
         if current:
-            gap = segment.start - current[-1].end
-            length = segment.end - current[0].start
+            gap = segment.start - segments[current[-1]].end
+            length = segment.end - segments[current[0]].start
             if gap >= config.PARAGRAPH_PAUSE_S or length > config.PARAGRAPH_MAX_S:
                 close()
-        current.append(segment)
+        current.append(index)
     close()
     return built
 
 
-def _marked(segment: Segment) -> str:
+def _marked(segment: Segment, looped: bool = False) -> str:
     """The segment's words, with an ``[unclear]`` marker if ASR was unsure.
 
-    The marker is an annotation, not an edit: the words stay exactly as they
-    came out, and the prompt forbids completing a passage that carries it. A
-    guess dressed up as a sentence the speaker said is the one thing a verbatim
-    transcript must not contain.
+    Unsure means a low log probability, or a repetition loop (see
+    ``looping``). The marker is an annotation, not an edit: the words stay
+    exactly as they came out, and the prompt forbids completing a passage that
+    carries it. A guess dressed up as a sentence the speaker said is the one
+    thing a verbatim transcript must not contain.
     """
-    return f"{segment.text} {UNCLEAR}" if segment.unclear else segment.text
+    unclear = segment.unclear or looped
+    return f"{segment.text} {UNCLEAR}" if unclear else segment.text
+
+
+_LOOP_STRIP = re.compile(r"[^\w']")
+
+
+def looping(segments: list[Segment]) -> set[int]:
+    """Positions of the segments a repetition loop runs through.
+
+    Whisper can fall into repeating what it has just written, and the result
+    reads as speech with a normal confidence: "you run it, you run it, you run
+    it" eleven times over, with an average log probability of -0.20, in place
+    of a sentence that was actually said (PILOT.md, 2026-10-30). The
+    ``[unclear]`` check on log probability does not see it, so this one looks
+    at the words: a run said back to back whose extra copies add up to
+    ``LOOP_MIN_REPEATED_WORDS`` or more.
+
+    It works on the whole transcript rather than one segment at a time,
+    because a loop of a long sentence spans segments: three segments of under
+    a second each, holding the same 24 words.
+    """
+    words: list[str] = []
+    owner: list[int] = []
+    for index, segment in enumerate(segments):
+        for word in segment.text.split():
+            token = _LOOP_STRIP.sub("", word.lower())
+            if token:
+                words.append(token)
+                owner.append(index)
+
+    marked: set[int] = set()
+    start = 0
+    while start < len(words):
+        length = _loop_at(words, start)
+        if length:
+            marked.update(owner[start : start + length])
+            start += length
+        else:
+            start += 1
+    return marked
+
+
+def _loop_at(words: list[str], start: int) -> int:
+    """Length in words of the loop that starts here, or 0 if none does."""
+    best = 0
+    for run in range(2, config.LOOP_MAX_RUN_WORDS + 1):
+        if start + 2 * run > len(words):
+            break
+        if words[start + run] != words[start]:
+            continue
+        unit = words[start : start + run]
+        copies = 1
+        while words[start + copies * run : start + (copies + 1) * run] == unit:
+            copies += 1
+        if (copies - 1) * run >= config.LOOP_MIN_REPEATED_WORDS:
+            best = max(best, copies * run)
+    return best
 
 
 # --- the transcript note ----------------------------------------------------
@@ -551,6 +611,17 @@ def run(
         )
     write_segments(slug, segments, reported)
 
+    looped = looping(segments)
+    if looped:
+        # Named in the log with where they are, so a pilot run can be read for
+        # how often this happens and whether the marked text was a real loop.
+        log.event(
+            "transcribe",
+            "repetition loop marked unclear",
+            slug=slug,
+            segments=len(looped),
+            at_s=[round(segments[i].start) for i in sorted(looped)],
+        )
     built = paragraphs(segments)
     note = transcript_markdown(
         built,
