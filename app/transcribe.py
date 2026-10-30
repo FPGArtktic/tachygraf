@@ -511,7 +511,7 @@ def looping(segments: list[Segment]) -> set[int]:
 
     Whisper can fall into repeating what it has just written, and the result
     reads as speech with a normal confidence: "you run it, you run it, you run
-    it" eleven times over, with an average log probability of -0.20, in place
+    it" twelve times over, with an average log probability of -0.20, in place
     of a sentence that was actually said (PILOT.md, 2026-10-30). The
     ``[unclear]`` check on log probability does not see it, so this one looks
     at the words: a run said back to back whose extra copies add up to

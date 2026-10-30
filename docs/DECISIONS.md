@@ -546,7 +546,7 @@ prompt from earlier windows; that is a separate guard.
 
 Turning off conditioning on previous text stops a loop being carried from one
 window to the next, not a loop inside one window. With a vocabulary hint in
-the prompt, `large-v3` wrote "you run it" eleven times in place of "you start
+the prompt, `large-v3` wrote "you run it" twelve times in place of "you start
 it, there's no indexing, you don't have to wait, you can just use it right
 away", in a 33-second segment with an average log probability of -0.20. The
 `[unclear]` check on log probability did not see it, and nothing else would
@@ -561,7 +561,7 @@ passes through is marked `[unclear]`, which the note prompt already treats as
 changed, as with the existing marker.
 
 The threshold is counted in extra words, not in copies, because the two
-failure shapes differ: a short phrase many times ("you run it" ×11, 30 extra
+failure shapes differ: a short phrase many times ("you run it" ×12, 33 extra
 words) and a long sentence twice (24 words, 24 extra). The six loops in the
 transcripts measured on 2026-10-30 added 12 to 33 words; the speakers' own
 repetitions in the same transcripts added at most 6 ("this tool and this tool
@@ -603,7 +603,7 @@ Two things the measurement showed that the interface has to say:
   it.
 - A different prompt is a different decoding, and it is not free. The run
   with the hint had two faults the run without it did not: a loop ("you run
-  it" eleven times), which the loop check marks, and a 25-word sentence left
+  it" twelve times), which the loop check marks, and a 25-word sentence left
   out with nothing in its place ("With Claude Code, you can just ask Claude
   Code and it'll explore the code base, it'll answer these kind of
   questions"), which nothing marks. The run without the hint lost no passage

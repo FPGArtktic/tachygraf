@@ -352,7 +352,7 @@ def test_a_confident_segment_carries_no_marker() -> None:
 
 
 def test_a_repetition_loop_is_marked_unclear_despite_its_confidence() -> None:
-    """Measured: eleven "you run it" at -0.20, in place of what was said."""
+    """Measured: twelve "you run it" at -0.20, in place of what was said."""
     loop = "So you start Claude, you download it" + ", you run it" * 11 + "."
     built = transcribe.paragraphs(
         [

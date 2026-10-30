@@ -326,6 +326,115 @@ Nothing is changed on this. The default stays `qwen2.5:32b` until a longer
 recording has been through `gemma3:27b` and `qwen3:32b` too, reviewed the
 same way.
 
+## 2026-10-30 — A 28-minute talk end to end, and the speech model compared
+
+The first recording long enough to have more than one window:
+`claude-engineer.mp4`, 00:27:52, H.264 1080p with stereo AAC, no language tag.
+A conference talk about Claude Code, in English, unscripted, with questions
+from the audience at the end. Domain "applied AI".
+
+**The pipeline, end to end, on the RTX 5070 Ti.** `large-v3` at float16
+detected English at 0.995 and transcribed the talk in 97 s. The chunk stage
+then closed its first window at 6191 tokens against a budget of 6000, which
+the generate stage refuses: the budget was checked after a paragraph was
+added. Fixed in `chunk.group_paragraphs`; the plan became two windows of 5939
+and 1668 tokens. The speaker made no pause of `PAUSE_SPLIT_S` (2.5 s) in the
+first 21 minutes, so it was the budget that closed the window: the first
+time `PAUSE_SPLIT_S` was exercised, and it never fired. `qwen2.5:32b` wrote
+the two notes in 143 s and 107 s; `gemma3:27b`, run on the same windows for
+comparison, in 154 s and 102 s.
+
+**`[unclear]` fired for the first time.** Nine segments between 804 and
+834 s fell below `UNCLEAR_LOGPROB`, all at exactly -1.04, and the text there
+was invented ("on behalf of 20 moders", a Chinese character). Every segment in
+a stretch carries the same log probability — -0.21 throughout 248-264 s,
+-0.25 throughout 793-803 s — so the marker covers whole stretches, including
+the real sentences in them ("these are common bash commands. We have a style
+guide.").
+
+**Whisper settings and Parakeet, on the same audio.** Whisper is `large-v3`,
+float16, beam 5, VAD on. Parakeet is NVIDIA's `parakeet-tdt-0.6b-v3` in
+NeMo 3.0.0 with torch 2.11 (cu128), float32, local attention, in a separate
+image. "Repeated" counts six-word sequences that occur more than once; the
+speaker's own repetitions put a clean transcript of this talk at about 8.
+"Loops" is what `transcribe.looping` marks. "Claude Code" counts the correct
+spelling of the product's name.
+
+| run | words | repeated | loops | "Claude Code" | "Cloud Code" | ASR time |
+| --- | --- | --- | --- | --- | --- | --- |
+| Whisper, default | 5552 | 47 | 2 (263 s, 796–803 s) | 0 (+2 "Claude code") | 9 | 97 s |
+| Whisper, `condition_on_previous_text` off | 5396 | 9 | 0 | 0 (+2 "Claude code") | 23 | 67 s |
+| … plus hotwords "Claude Code, CLAUDE.md, Anthropic" | 5389 | 8 | 0 | 0 | 15 | 67 s |
+| … plus hotwords "Claude, Claude Code, CLAUDE.md, Anthropic" | 5423 | 13 | 1 (278 s) | **39** | 1 | 67 s |
+| Parakeet TDT 0.6B v3 | 5555 | 8 | 0 | 0 (+1 "Claude code") | 7 | 16 s + 15 s load |
+
+Against Parakeet's transcript of the same audio, with "uh" and "um" removed
+from both (Whisper drops them, Parakeet keeps them), the passages of eight or
+more words each Whisper run leaves out:
+
+| run | agreement | passages left out |
+| --- | --- | --- |
+| default | 0.932 | one, 16 words |
+| `condition_on_previous_text` off | 0.959 | none |
+| … plus the first hotword list | 0.949 | one, 8 words |
+| … plus the second hotword list | 0.949 | one, 25 words ("With Claude Code, you can just ask Claude Code and it'll explore the code base, it'll answer these kind of questions"), and the loop at 278 s, which replaced 17 words |
+
+What the comparison says:
+
+- **Conditioning on previous text causes most of the damage.** Off, the loops
+  and the twenty invented seconds are gone, nothing is left out, and it is
+  30 seconds faster. It is now off (DECISIONS.md).
+- **A loop can still happen inside one window**, and it reads as speech: the
+  loop at 278 s was "you run it" twelve times in a 33-second segment at
+  -0.20. `transcribe.looping` now marks it.
+- **The hotword list fixes the names and costs something.** The second list
+  gave "Claude Code" 39 times instead of never, but that run left out one
+  sentence, unmarked. The first list, without "Claude" on its own, wrote the
+  name as "CLAUDE" fifty times: the list is literal, case included. The
+  vocabulary is opt-in (DECISIONS.md).
+- **Parakeet is as clean as Whisper with conditioning off, and much faster,
+  but not a better fit.** No loops and nothing left out, 16 s for 28 minutes.
+  Against it: it also gets the name wrong ("Cloud Code", "quad code"); its
+  card memory grows with the recording (9.8 GiB for 11½ minutes, 13.2 GiB
+  for 28, against 5.4 GiB for Whisper whatever the length), so a 90-minute
+  lecture would need the audio cut into pieces; NeMo's word confidence, which
+  `[unclear]` would need, worked on 11½ minutes and raised "Something went
+  wrong with word-level confidence aggregation" on 28; and the image is
+  20 GB against 11.3. Polish has not been tried on either.
+
+On the diodes recording, for completeness: Whisper with conditioning off gave
+2194 words and 8 repeated sequences in 36.5 s, but stopped before the last
+words of the outro ("…Instagram, Twitter" without "as well as
+theengineeringmindset.com"); Parakeet gave 2199 words and 8 repeated in
+14.9 s plus 17.2 s of loading, at 9.8 GiB, with word confidence between 0.71
+and 1.00.
+
+**The talk again, with both fixes**, through the real worker: conditioning
+off and the vocabulary "Claude, Claude Code, CLAUDE.md, Anthropic". The
+transcript has "Claude Code" 39 times and "Cloud Code" once, and the loop at
+278 s carries `[unclear]`. The chunk stage closed the first window at a real
+pause this time, 3.77 s at 00:13:59, giving two windows of 3775 and 3574
+tokens instead of 5939 and 1668. The default transcript had no pause of
+2.5 s anywhere in its first 21 minutes; this one has it just after the
+stretch where the default invented twenty seconds of speech, which looks like
+the invented speech had covered the pause. `qwen2.5:32b` then wrote "01
+Claude Code Practical Tips and Tricks" and "02 ClaudeMD and Context
+Management", in 127 s and 105 s, with no "Quadcode" or "Cloud Code" in either
+note. The earlier notes, with the wrong names, stay in the output folder,
+since no stage deletes anything; the map lists only the new ones.
+
+**The two text models on the talk**, reviewed against the transcript made
+with conditioning on and no vocabulary, so both notes say "Quadcode":
+
+| | `qwen2.5:32b` | `gemma3:27b` |
+| --- | --- | --- |
+| claims, window 1 + 2 | 6 + 5 | 12 + 9 |
+| content errors | 3: the implementation difficulty and multimodality attributed to the SDK rather than the tool; "80% use it daily" moved to "for machine learning and modelling" | 2: MCP expanded as "Most Common Pattern"; bash safety attributed to the SDK |
+| glossary lines wrong | several ("Środowisko Rozwoju Integracyjnego", "bezpieczna protokół", "zeszyt Jupyter") | 1 ("polecenia prefiksowe") |
+
+The same picture as on the diodes window: `gemma3:27b` covers more of the
+window and is wrong less often, in the same time.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
@@ -335,6 +444,11 @@ These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
   window, citations that miss their paragraph, and the glossary.
 - **The CPU fallback on this machine**, `int8`, 8 threads: wall clock, and
   whether it loops the way `int8_float16` did on the card.
+- **A Polish recording through both speech models**, with and without a
+  vocabulary: the comparison above is English only, and Polish is what the
+  tool is for.
+- **How often a vocabulary costs a sentence.** One recording, one omission;
+  it needs several recordings with and without the list.
 - **Generation**, `qwen2.5:32b`: minutes per window, and the figure CLAUDE.md's
   open decision 6 asks for — how many responses the parser rejected and which
   rule each rejection broke. One window is not a sample; a 60-minute recording
