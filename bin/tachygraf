@@ -89,11 +89,15 @@ preflight() {
         die "no tachygraf:latest image; run: tachygraf build"
     # The ASR stage needs the card inside the container. Without a CDI spec
     # podman fails at start with a message about nvidia.com/gpu that does not
-    # say what to run.
-    ls /etc/cdi/nvidia.yaml /var/run/cdi/nvidia.yaml >/dev/null 2>&1 ||
+    # say what to run. Either location counts; ls on both would fail whenever
+    # one of them is missing, which is the normal case. The refresh units are
+    # the fix rather than a one-off generate: /var/run is a tmpfs, and a spec
+    # in /etc/cdi names the driver's library versions and goes stale at the
+    # next driver update.
+    [ -f /etc/cdi/nvidia.yaml ] || [ -f /var/run/cdi/nvidia.yaml ] ||
         echo "tachygraf: warning: no CDI spec for the GPU; transcription will" \
-             "run on the CPU. To fix: sudo nvidia-ctk cdi generate" \
-             "--output=/etc/cdi/nvidia.yaml" >&2
+             "run on the CPU. To fix: sudo systemctl enable --now" \
+             "nvidia-cdi-refresh.path nvidia-cdi-refresh.service" >&2
     curl -s -m 3 -o /dev/null "$OLLAMA_URL/api/tags" ||
         echo "tachygraf: warning: no Ollama at $OLLAMA_URL; transcription will" \
              "work, note generation will not" >&2

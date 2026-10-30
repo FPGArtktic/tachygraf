@@ -16,8 +16,9 @@ UserNS=keep-id
 PublishPort=7861:7860
 
 # The ASR stage runs faster-whisper inside the container, so the card has to
-# be visible there. This needs a CDI spec on the host:
-#   sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+# be visible there. This needs a CDI spec on the host, regenerated at boot and
+# at every driver update by the units nvidia-container-toolkit ships:
+#   sudo systemctl enable --now nvidia-cdi-refresh.path nvidia-cdi-refresh.service
 # glosator never does this; its only GPU user is Ollama on the host.
 AddDevice=nvidia.com/gpu=all
 
