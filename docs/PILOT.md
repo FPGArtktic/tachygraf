@@ -613,6 +613,29 @@ sound items. As a citation repairer it would earn its time on a model that
 cites badly; as a fact checker it does not, and `gemma4:31b` already cites
 nearly everywhere. No review stage is added.
 
+## 2026-10-30 — gemma4:31b with thinking, one window
+
+Window 1 of the Polish talk again, `gemma4:31b` with thinking on and the
+model's own sampling (temperature 1), `num_ctx` 24576, `num_predict` 16384,
+to see what the `think: false` in every request gives up. At that context
+Ollama kept 10.2 GiB of the weights on the card and 8.9 GiB on the CPU.
+
+| | thinking off (the default) | thinking on |
+| --- | --- | --- |
+| wall clock | 134 s | 735 s |
+| output tokens | 1253 | 6479, about 2600 words of it thinking |
+| tokens per second | 11.5 | 9.1 |
+| content errors | 0 | 0 |
+
+The thinking did not loop: its most repeated run of eight words occurs three
+times, while drafting the glossary. The note is as sound as the one without
+thinking and no sounder: the same hard points right, every sentence of
+Explanation cited, and one stray aside, "(outside this window)". The
+glossary is the one gain: the speaker's own terms ("twarde systemy czasu
+rzeczywistego", "zestaw narzędzi", "receptura") where the note without
+thinking had calques. Five and a half times the time, about half an hour
+for this talk, for a better glossary: thinking stays off.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
