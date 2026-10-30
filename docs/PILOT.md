@@ -230,16 +230,109 @@ What the table says:
   Twitter and Facebook. You can also follow us on Twitter". Nothing in the
   lecture itself.
 
+## 2026-10-30 — Generation on the RTX 5070 Ti, three text models on one window
+
+The window the laptop measured on 2026-10-04: the diodes recording, one window
+of 12 paragraphs (`work/dio`), domain "diodes", prompt version 2. Each model
+went through the stage's own `generate.run` — the prompt, the parser,
+`assemble` and the write guards — with the Ollama call replaced by a copy that
+keeps the response's timing fields. `qwen3:32b` was called with thinking off
+(`think: false`), which the stage does not do today; with thinking on, its
+reasoning would spend `NUM_PREDICT`. Ollama 0.40.13, `ollama-cuda` from Arch,
+`num_ctx` 12288, the card otherwise idle with the desktop on it.
+
+| model | layers on the card | in VRAM / total | load | prompt | output | tokens/s | wall clock | rejected |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `qwen2.5:32b` | 39/65 | 13.0 / 21.8 GiB | 12.1 s | 4252 tok, 6.1 s | 733 tok | 5.66 | **148 s** | 0 |
+| `gemma3:27b` | 44/63 | 11.7 / 16.4 GiB | 10.3 s | 4237 tok, 4.6 s | 1604 tok | 8.76 | **198 s** | 0 |
+| `qwen3:32b` | 39/65 | 13.2 / 22.1 GiB | 10.0 s | 4239 tok, 6.4 s | 1204 tok | 5.15 | **250 s** | 0 |
+
+- `qwen2.5:32b` took 148 s for the window the laptop took 592 s for: four
+  times faster, with 39 of its 65 layers on the card.
+- The run is bound by the layers left on the CPU. GPU utilisation sampled
+  every 2 s stayed between 0 and 18 percent while the card's memory was full
+  (14.7 GiB of 15.9 at the peak).
+- RAM is not a constraint at 32 GB. The weights are memory-mapped, so the part
+  on the CPU sits in the page cache: memory used by all processes together
+  peaked at 6.4 GiB, and available memory never fell below 24 GiB.
+- `OLLAMA_TIMEOUT_S` (2700) stays. A maximal window, 6000 tokens in and 2048
+  out at 5 tokens per second, is under ten minutes on this card, so the
+  number is now very generous, and that is its job.
+
+The three notes, reviewed against the transcript by one reviewer (Claude),
+on one window of an English lecture. That is evidence, not a sample.
+
+| | `qwen2.5:32b` | `gemma3:27b` | `qwen3:32b` |
+| --- | --- | --- | --- |
+| claims | 6 | 14 | 11 |
+| reversed directions | 0 | 0 | 0 |
+| content not in the source, or changed | 3 | 2 | 3 |
+| citations to a paragraph that does not hold the claim | 1 | ~10 | 2 |
+| claims copied verbatim without quotation marks | 0 | 0 | 7 |
+| glossary lines wrong, of those the prompt does not supply | 5 of 9 | 3 of 9 | 2 of 14 |
+
+The content errors, each against the paragraph that says otherwise:
+
+- `qwen2.5:32b`: forward bias "reduces the barrier voltage" (the speaker only
+  says the source must exceed the 0.7 V barrier, p0008); reverse bias
+  "increases the barrier voltage" (the speaker: "the barrier expands", p0008);
+  the 0.7 V of the depletion region becomes "the typical forward voltage drop
+  for a silicon diode" (p0007; the speaker measures the drop separately, 0.71 V,
+  p0009). The last is the error glosator's rule names: a number moved to
+  another quantity.
+- `gemma3:27b`: silicon has "nearly full valence shells" (the speaker: one
+  electron too many to be a conductor, four of eight, p0004–p0005); the
+  multimeter's diode-test reading is called a voltage drop (p0012 keeps the
+  0.516 V opening voltage apart from the 0.71 V drop).
+- `qwen3:32b`: diodes are used "in signal processing" (not said); in diode
+  test mode the meter "applies a small voltage and measures the resulting
+  current" (not said, and backwards: the mode reports a voltage); a healthy
+  diode shows "0.5 to 0.7 volts" (a range the speaker never gives, made by
+  merging 0.516 V and 0.71 V, which he measured as two different things).
+
+The glossaries, against established Polish terms:
+
+- `qwen2.5:32b`: "polaryzacja przódowa", "doping p-rodzajowy", "dopping
+  n-rodzajowy", "łącze p-n" (złącze p-n), "opad napięcia" (spadek napięcia).
+  Five invented terms of nine, after `PROMPT_VERSION` 2 added the rule against
+  calques: on this window the rule did not work for this model.
+- `gemma3:27b`: "(brak odpowiednika)" for anode and cathode, which are "anoda"
+  and "katoda"; "prąd konwencjonalny", a calque of "umowny kierunek prądu".
+  The other eight are right. It fails towards the admitted gap, which is the
+  safer direction, though not for terms this basic.
+- `qwen3:32b`: "polaryzacja w przód", a calque; "pas przewodnictwa" for
+  "pasmo przewodnictwa"; and "polaryzacja wsteczna" for reverse bias, where
+  the prompt itself gives "polaryzacja zaporowa" as the answer. Thirteen of
+  sixteen are right, including "domieszkowanie typu p" and "wiązanie
+  kowalencyjne".
+
+What it says, as far as one window can:
+
+- No model reversed a direction. That was the failure that ruled out
+  `gemma3:12b` in glosator; the 27B did not show it here.
+- `gemma3:27b` is the most faithful: its two errors are the smallest, and it
+  adds nothing from outside the recording. Its weakness is citation: its
+  explanation cites a label on nearly every sentence, and about ten of them
+  point at the paragraph before or after the one that holds the claim.
+  Several fall where `PARAGRAPH_MAX_S` cut a sentence in two ("This side is
+  how it should perform" / "when acting as a conductor"), which is evidence
+  for open decision 3 as much as against the model.
+- `qwen3:32b` writes the best Polish and the most outside knowledge, one item
+  of it wrong. For a study note that is the worse trade.
+- `qwen2.5:32b` is the fastest and the thinnest: six claims, three errors, and
+  a glossary that is mostly invented.
+
+Nothing is changed on this. The default stays `qwen2.5:32b` until a longer
+recording has been through `gemma3:27b` and `qwen3:32b` too, reviewed the
+same way.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
 
-- **Generation on the RTX 5070 Ti**, `qwen2.5:32b` on the diodes window: how
-  many of its layers Ollama puts on the card with the desktop on it, and
-  minutes per window against the laptop's 592 s. Then `qwen3:32b` and
-  `gemma3:27b` on the same window and reviewed the same way, because the card
-  makes a same-class comparison minutes rather than hours. The Polish glossary
-  is the thing to read first in each.
+- **`gemma3:27b` and `qwen3:32b` against `qwen2.5:32b` on a 60-minute
+  recording**, reviewed the same way as the one window above: errors per
+  window, citations that miss their paragraph, and the glossary.
 - **The CPU fallback on this machine**, `int8`, 8 threads: wall clock, and
   whether it loops the way `int8_float16` did on the card.
 - **Generation**, `qwen2.5:32b`: minutes per window, and the figure CLAUDE.md's
