@@ -435,28 +435,163 @@ with conditioning on and no vocabulary, so both notes say "Quadcode":
 The same picture as on the diodes window: `gemma3:27b` covers more of the
 window and is wrong less often, in the same time.
 
+## 2026-10-30 — A Polish conference talk, and seven text models
+
+The first Polish recording: "Jak zacząć z Yocto Project? Praktyczne
+wprowadzenie", Karol Przybylski, 20. Sesja Linuksowa (Wrocław, 2026-04-25),
+taken from the conference's YouTube upload as its audio track only (AAC,
+129 kbit/s, 44.1 kHz stereo), 00:53:41. A talk in a room with a microphone,
+in Polish with English jargon throughout, and audience questions at the end.
+Domain "embedded linux". Everything below ran on the RTX 5070 Ti with the
+image built for this machine, one model on the card at a time.
+
+**Transcription.** `large-v3`, float16, beam 5, VAD on, conditioning on
+previous text off, language `pl`, through the worker: 117 s for 53:41, 27×
+real time, 623 segments. The card peaked at 5560 MiB with the desktop's
+1324 MiB in it, so the stage needs no more for 54 minutes than it did for 28.
+The same audio with the vocabulary "Yocto, Yocto Project, OpenEmbedded,
+BitBake, Poky, Embedded Linux" (a scratch run of the same settings plus
+`hotwords`) took 119 s. YouTube's own Polish captions of the talk, a different
+recogniser, serve as the reference for what a run leaves out.
+
+| run | words | repeated 6-grams | loops | `[unclear]` | agreement with the captions | passages of 8+ words left out |
+| --- | --- | --- | --- | --- | --- | --- |
+| no vocabulary | 7674 | 5 | 0 | 0 | 0.939 | none |
+| vocabulary | 7679 | 4 | 0 | 0 | 0.936 | none |
+
+- **Names.** Without the vocabulary the product was "Yocto" 17 times,
+  "Jokto" 14, "Viocto" once and "jak to projekt" for "Yocto Project" once;
+  BitBake came out four ways and Poky as "poki". With it: "Yocto" 37,
+  "Yocto Project" 7, "BitBake" 20, "Poky" 5, "OpenEmbedded" 3, and no other
+  spelling. This time the list cost nothing that the comparison can see. The
+  captions have the same trouble ("Joko Project", "Yokto", "EBed Linux").
+- **Jargon said in Polish** comes out as it sounds and inflected: "imidżu",
+  "Buildruta", "ardependsy" (RDEPENDS), "U-Midja, Z-Midja" (uImage, zImage),
+  "WIG" (wic), "ScalpGap" (Scarthgap), "CVI Check" (cve-check), "Wulnscout"
+  (VulnScout), "RunQM-u" (runqemu). The largest disagreements with the
+  captions are 7 words or fewer and are all of this kind, not missing speech.
+- **Log probability** stayed between -0.23 and -0.07 (median -0.12), the
+  audience questions included, so `UNCLEAR_LOGPROB` (-0.9) was nowhere near
+  firing. A room recording with a good microphone is not the bad audio the
+  threshold is for.
+
+**Windows.** 71 paragraphs, three windows: 00:00:01-00:24:30 (28 paragraphs,
+closed by the token budget), 00:23:35-00:45:56 (30, closed at a 7.4 s pause:
+the first time `PAUSE_SPLIT_S` decided a window) and 00:45:10-00:53:35 (15).
+`estimate_tokens` gave 5799, 5150 and 1687. Polish costs more tokens than the
+estimate's four characters each: about 3.2 characters per token in the
+qwen2.5 tokenizer, 23 percent over the estimate, and about 3.8 in gemma4's.
+The fullest window still fitted `NUM_CTX` with about 1200 tokens to spare.
+
+**Generation, seven models on the same three windows.** Prompt version 2,
+the stage's own `generate.run`, `num_ctx` 12288, temperature 0.25,
+`num_predict` 2048, thinking off unless stated. Ollama 0.40.13, except
+Ternary Bonsai, which needs PrismML's llama.cpp fork (`prism-b10787-73bfe6c`,
+CUDA 12.8 built for `sm_120`) and ran on its `llama-server` with every layer
+on the card and a 16384-token context. Card peak includes the desktop's
+1.3-1.5 GB. No response was rejected by the parser in force that day.
+
+| model | wall clock, windows 1+2+3 | output tok/s | card peak | items checked | content errors |
+| --- | --- | --- | --- | --- | --- |
+| `gemma3:27b` | 171 + 129 + 117 = **417 s** | - | 14937 MiB | 94 | 9, and 4 minor |
+| `qwen2.5:32b` | 195 + 159 + 153 = 507 s | 4.8-5.7 | 14832 MiB | 65 | about 3, and 5 minor |
+| `qwen3:32b` | 212 + 255 + 180 = 647 s | 4.2-5.2 | 14820 MiB | 81 | about 4, and 2 minor |
+| `gemma4:31b` | 134 + 117 + 85 = **336 s** | 11.5-13.2 | 15627 MiB | 98 | **0**, and 1 minor |
+| `gemma4:26b` (MoE, 3.8B active) | 29 + 18 + 12 = **59 s** | 104-109 | 15587 MiB | 100 | 2, and 2 minor |
+| Ternary-Bonsai-2-27B, PQ2_0 | 30 + 24 + 15 = 69 s | 78-83 | 10167 MiB | 148 | 4, and 2 minor |
+| `gemma4:12b`, thinking, its own sampling | 42 + 33 + 33 = 108 s | 155-163 | 11069 MiB | 109 | 1, and 3 minor |
+
+"Items checked" are the sentences of Explanation, the bullets of Key claims
+and Pitfalls; an error repeated in two items counts twice. One reviewer read
+them against the windows. The `gemma3:27b`
+notes were reviewed item by item and the review written down before anything
+else ran; the others in one pass each, with the same windows at hand, so
+their counts are less exact than the first row's.
+
+- **`gemma3:27b`**, the default that morning: the four parts of a
+  distribution (toolchain, bootloader, kernel, rootfs) attributed to the
+  Yocto Project; "army" (ARMs, in the speaker's slang) translated "armies",
+  twice; Armbian placed among the immutable, container-centred
+  distributions the questioner had named (CoreOS, Flatcar); the speaker's
+  joke "the most important layer is meta-doom" given as "the core layer";
+  "Secure Boot is supported by Yocto" where the speaker only pointed to his
+  own video; a hedge ("maybe it can be done") turned into "is incorrect".
+  22 citation faults: 12 items with no label, one malformed label `[p007]`
+  that reached the note as text, nine pointing at a neighbouring paragraph.
+  The practical half of window 2 (Scarthgap 5.0, 90 GB and 8 GB, the Poky
+  container, `runqemu`) is missing. Glossary: 5 of 20 invented, among them
+  bootloader as "rozruch".
+- **`qwen2.5:32b`** and **`qwen3:32b`** cite nothing in Explanation, so most
+  of what they write cannot be checked against the transcript. `qwen3:32b`
+  credits VulnScout with generating the SBOM and turns "maybe it can be done"
+  into "technically possible", twice. Both glossaries invent ("Trusted
+  Firmware — Ufne oprogramowanie" in both, "kompilacja na krzyż",
+  "Yocto Project — Jokto Project").
+- **`gemma4:31b`** got right every point the others got wrong, covered the
+  whole of every window including the practical part, and cited the right
+  paragraph everywhere but one list of six tasks cited to p0039 when half of
+  them are in p0040. It put file extensions in math delimiters (`$.bb$`).
+  It repaired some misheard names from context (RDEPENDS, `runqemu`) and kept
+  others (ScalpGap, CVI Check), which is the correction this pipeline does
+  not ask a text model for; here it was right each time. Glossary: 3 or 4
+  calques of 26 lines ("harmonogram" for scheduler).
+- **`gemma4:26b`** made "do not learn Yocto just for a hobby project" into
+  "not recommended for learning", in Explanation and again in Pitfalls; gave
+  the meta-doom joke as a key claim; added `bitbake -e`, which the speaker
+  did not name. It wrote 11 citations as groups, `[p0003, p0004]`, which the
+  parser did not read as labels: they reached the notes as text.
+- **Ternary-Bonsai-2-27B** (Qwen3.5-27B at about 2 bits a weight) wrote the
+  most detailed notes and reversed the licensing answer: "accepting GPL 3.0
+  globally is necessary for commercial products" and "failing to accept
+  licenses leads to crashes", each twice. The speaker said the opposite of the
+  first, and the crashes were the questioner's, after accepting GPL 3.0.
+  Explanation carries no label.
+- **`gemma4:12b` with thinking** described desktop distributions as "designed
+  for general hardware" where the speaker said a specific set of hardware;
+  otherwise its notes stand with `gemma4:26b`'s. At the pipeline's
+  temperature (0.25) it never wrote a note: on window 1 it thought through
+  8192 and then 16384 tokens and returned nothing, and the thinking was one
+  glossary check ("Wait, "bootloader": "ładowarka rozruchowa". Wait,
+  "kernel": ...") repeated 24 times. With the model's own sampling
+  (temperature 1, top_k 64, top_p 0.95) it thought 3000-4000 tokens a window
+  and finished; the run above is that one. Its window-1 glossary still
+  carries the loop's "ładowarka rozruchowa" (a phone charger).
+
+**Thinking is on by default for gemma4.** Asked without a `think` field,
+`gemma4:26b` and `gemma4:31b` both reasoned before answering, and Ollama lists
+thinking as their default. With `think: false` they answer directly, and
+`gemma3:27b` and `qwen2.5:32b` accept the same field without complaint.
+
+**A verifier, tried and stopped.** `qwen3:32b` with thinking on was asked to
+judge every item and glossary line of the `gemma3:27b` notes against window
+1 (num_ctx 24576, Qwen's sampling for thinking). At that context Ollama kept
+13.2 of its 25.1 GiB on the card; after more than 14 minutes it had not
+finished the first window, and the run was stopped. It produced no verdict,
+so nothing here says how well a model reviews a note.
+
 ## Not yet measured
 
 These are the numbers CLAUDE.md's open decisions turn on. Each needs one run.
 
-- **`gemma3:27b` and `qwen3:32b` against `qwen2.5:32b` on a 60-minute
-  recording**, reviewed the same way as the one window above: errors per
-  window, citations that miss their paragraph, and the glossary.
+- **A second Polish recording through `gemma4:31b` and `gemma4:26b`**,
+  reviewed item by item as `gemma3:27b` was above: one recording and one
+  reviewer chose the default, and the gap between the two decides whether
+  the 26B's speed is worth its error.
+- **A judge model checked against a human review.** The verifier above never
+  finished; one that fits the card (`gemma4:26b` or `gemma4:12b` with
+  thinking) can say in minutes how many of the review's errors it finds and
+  how many sound items it would drop.
 - **The CPU fallback on this machine**, `int8`, 8 threads: wall clock, and
   whether it loops the way `int8_float16` did on the card.
-- **A Polish recording through both speech models**, with and without a
-  vocabulary: the comparison above is English only, and Polish is what the
-  tool is for.
-- **How often a vocabulary costs a sentence.** One recording, one omission;
-  it needs several recordings with and without the list.
-- **Generation**, `qwen2.5:32b`: minutes per window, and the figure CLAUDE.md's
-  open decision 6 asks for — how many responses the parser rejected and which
-  rule each rejection broke. One window is not a sample; a 60-minute recording
-  is still needed for a per-window average and for a rejection rate.
+- **How often a vocabulary costs a sentence.** Two recordings, one omission
+  (the English talk) and none (the Polish one); it needs more of both.
+- **A rejection rate.** No response was rejected in 21 notes on 2026-10-30,
+  but the parser has since learned to reject a malformed label, which one of
+  them carried. A few recordings through the default model will say how
+  often that happens.
 - **How often a model copies an example label** out of `note.md` rather than
   reading the window, which the parser rejects the whole response for.
-- **`PAUSE_SPLIT_S`**, which a single-window recording never reaches. Needs a
-  recording long enough to produce several windows.
-- **`UNCLEAR_LOGPROB`**, which clean studio audio never triggered. Needs a
-  recording made in a room.
+- **`UNCLEAR_LOGPROB`**, which neither studio audio nor a room with a good
+  microphone came near. Needs bad audio: a phone in the audience, a hall with
+  echo.
 - **`PARAGRAPH_MAX_S` at 40 s** against 60 s, on unscripted speech.
