@@ -47,7 +47,7 @@ generator: tachygraf
 prompt: 1
 source: "lecture-04.mp4"
 span: "00:12:40 - 00:21:05"
-model: gemma3:27b
+model: gemma4:31b
 generated: 2026-10-04
 tags: [signal-processing, lec4]
 ---
@@ -88,9 +88,11 @@ terminology needed to look a subject up in either language.
 
 - Podman, rootless. Nothing is installed on the host.
 - [Ollama](https://ollama.com) on the host with a text model, by default
-  `gemma3:27b`. On Arch that is `sudo pacman -S ollama-cuda`, then
-  `ollama pull gemma3:27b`. `qwen2.5:32b`, glosator's model, can be picked
-  per job instead; see docs/DECISIONS.md for why it is not the default here.
+  `gemma4:31b`. On Arch that is `sudo pacman -S ollama-cuda`, then
+  `ollama pull gemma4:31b`; gemma4 needs a recent Ollama (0.40.13 is the
+  version measured). `gemma4:26b` is several times faster with slightly
+  more errors, for a large batch; `gemma3:27b` and `qwen2.5:32b` can still
+  be picked per job. docs/DECISIONS.md says why.
   The container reaches it the way glosator does,
   with `pasta --map-host-loopback`; nothing has to be changed on the Ollama
   side.
@@ -205,7 +207,7 @@ stops it and removes the systemd unit, and deletes nothing else.
 
 tachygraf is not a service. Nothing starts at login, nothing restarts itself,
 and the models leave the GPU when a job ends. Within a single job the text
-model stays resident, because reloading 17 GB of weights for every
+model stays resident, because reloading 20 GB of weights for every
 window would dominate the running time.
 
 ## How it works
@@ -260,7 +262,7 @@ Configuration is confined to `app/config.py` and the environment.
 | `TACHYGRAF_IN`         | `/in`                  | folder the recordings are read from, mounted read-only |
 | `TACHYGRAF_OUT`        | `/out`                 | staging folder the output is written to |
 | `OLLAMA_URL`           | `http://ollama:11434`  | address of the Ollama instance |
-| `TACHYGRAF_TEXT_MODEL` | `gemma3:27b`           | model used for the notes |
+| `TACHYGRAF_TEXT_MODEL` | `gemma4:31b`           | model used for the notes |
 | `TACHYGRAF_ASR_MODEL`  | `large-v3`             | faster-whisper model; `large-v3-turbo` is the fast one |
 | `TACHYGRAF_LANGUAGE`   | `auto`                 | spoken language, or `auto` to let the ASR model decide |
 | `TACHYGRAF_DOMAIN`     | `general`              | subject assumed for a recording that specifies none |

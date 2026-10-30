@@ -692,3 +692,45 @@ So `generate` sends `think: false`, always. `gemma3:27b` and `qwen2.5:32b`
 accept the field and answer as before. Thinking as a deliberate step — with
 its own sampling and its own budget, as a reviewer of finished notes rather
 than as the writer — is a separate decision, not taken.
+
+## 2026-10-30 — The text model is gemma4:31b, on a Polish recording
+
+This replaces "The text model is gemma3:27b, on two recordings", from the
+morning of the same day, which left the choice open for Polish.
+
+The first Polish recording, a 54-minute conference talk, went through seven
+models on the same three windows, with the same prompt and parser, and every
+note was read against the transcript (PILOT.md, 2026-10-30). `gemma4:31b`
+wrote the only notes with no content error. It got right each point the
+others got wrong — what a distribution is made of, which distributions the
+questioner named, "army" as the speaker's slang for ARM — covered the
+practical half of the talk that `gemma3:27b` dropped, and cited the right
+paragraph nearly everywhere. Its glossary invents least. It took 336 s for
+the three windows against `gemma3:27b`'s 417 s: larger on disk (20 GB) and
+still faster, at 11-13 tokens per second with the rest on the CPU.
+
+What it does that the pipeline does not ask for: it restores some misheard
+names from context (RDEPENDS for "ardependsy", `runqemu` for "RunQM-u")
+and leaves others as heard. It was right each time here, but it is the
+correction DECISIONS.md "A recording's vocabulary goes to the speech model"
+keeps away from the text model, and the next review should look for a
+repair that is wrong.
+
+The others, for when the choice is revisited:
+
+- `gemma4:26b`, a mixture of experts with 3.8B parameters active, wrote the
+  three notes in 59 s and made one error (twice): "learning Yocto only for a
+  hobby project is not the best idea" became "not recommended for learning".
+  For a large batch it is the better trade, and stays selectable per job.
+- Ternary Bonsai 2 27B, at about 2 bits a weight, fits the card whole and
+  was nearly as fast, and reversed the answer on licensing. A reversal that
+  reads fluently is the failure glosator rejected its 12B for.
+- `gemma4:12b` with thinking wrote good notes only at its own sampling; at
+  this pipeline's temperature it looped (see "Every request asks for no
+  thinking").
+- `qwen2.5:32b` and `qwen3:32b` cite nothing in Explanation and invent the
+  most in the glossary, and are the slowest.
+
+One recording and one reviewer are evidence, not a sample. A second Polish
+recording reviewed item by item, `gemma4:31b` against `gemma4:26b`, is in
+PILOT.md's list of what is not yet measured.

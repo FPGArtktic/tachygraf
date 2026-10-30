@@ -34,7 +34,7 @@ Volume=@NOTES@:/out:Z
 Volume=@REPO@/work:/work:Z
 Volume=@REPO@/state:/state:Z
 
-Environment=TACHYGRAF_TEXT_MODEL=gemma3:27b
+Environment=TACHYGRAF_TEXT_MODEL=gemma4:31b
 Environment=TACHYGRAF_ASR_MODEL=large-v3
 Environment=TZ=Europe/Warsaw
 

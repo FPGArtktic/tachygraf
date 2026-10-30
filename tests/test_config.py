@@ -86,7 +86,7 @@ def test_the_defaults_are_the_container_mounts() -> None:
             "OUT_DIR": Path("/out"),
             "WORK_DIR": Path("/work"),
             "STATE_DIR": Path("/state"),
-            "TEXT_MODEL": "gemma3:27b",
+            "TEXT_MODEL": "gemma4:31b",
             "ASR_MODEL": "large-v3",
         }
         assert {name: getattr(fresh, name) for name in expected} == expected
