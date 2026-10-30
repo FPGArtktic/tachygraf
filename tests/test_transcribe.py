@@ -209,6 +209,16 @@ def test_auto_means_the_model_decides(
     assert model.calls[0]["language"] is None
 
 
+def test_whisper_is_not_conditioned_on_its_own_text(
+    monkeypatch: pytest.MonkeyPatch, on_the_cpu
+) -> None:
+    """faster-whisper's default turned one mistake into five copies of it."""
+    model = FakeModel([FakeSegment(0.0, 2.0, "Hello.")])
+    _install(monkeypatch, model)
+    transcribe.transcribe_audio(_audio())
+    assert model.calls[0]["condition_on_previous_text"] is False
+
+
 def test_empty_segments_are_dropped(
     monkeypatch: pytest.MonkeyPatch, on_the_cpu
 ) -> None:

@@ -130,6 +130,17 @@ ASR_BEAM_SIZE: int = 5
 # than the pause it may clip.
 ASR_VAD_FILTER: bool = True
 
+# Off: Whisper is not shown its own previous text as the prompt for the next
+# 30 seconds. faster-whisper's default feeds it back, and a mistake then
+# becomes the prompt that repeats it. On the 28-minute talk in PILOT.md the
+# default wrote "you were doing technical onboarding" five times over and a
+# 24-word sentence twice, then twenty seconds of invented words. With this off
+# the same audio gave none of it, lost no passage of eight words or more
+# against an independent transcript by another model, and took 67 s instead of
+# 97. The cost is that a name spelled one way early on is no longer carried
+# forward to the next window.
+ASR_CONDITION_ON_PREVIOUS_TEXT: bool = False
+
 # How long the ASR child may take. The CPU fallback on a three-hour recording
 # is the case this has to allow for, and it is slower than real time; a
 # timeout that fires on a healthy run is a bug in this number, as with

@@ -516,3 +516,28 @@ What it does not change:
 - RAM halved, from 64 to 32 GB. A 32B model with part of it offloaded fits;
   nothing larger does, so a 70B model is out of reach on this machine
   whatever the card.
+
+## 2026-10-30 — Whisper is not conditioned on its own previous text
+
+faster-whisper passes each 30-second window the text of the windows before it
+as a prompt (`condition_on_previous_text`, on by default). The point is
+continuity of spelling and style. The cost is that a mistake becomes the
+prompt for the next window, and Whisper continues a loop it has started.
+
+The first recording long enough to show it, a 28-minute talk (PILOT.md,
+2026-10-30): with the default, `large-v3` wrote "you were doing technical
+onboarding" five times in one second of audio, a 24-word sentence twice in
+under three seconds, and then twenty seconds of invented words, including a Chinese
+character. With the option off, the same audio gave none of it: 9 repeated
+six-word sequences against 47, the speaker's own repetitions being about 9.
+It lost no passage of eight words or more against an independent transcript
+of the same audio by a different model (NVIDIA Parakeet TDT), where the
+default lost one, and it took 67 s instead of 97.
+
+So it is off. What is given up is the carrying of a spelling from one window
+to the next; a name the model gets right at minute 3 may be spelled
+differently at minute 20. That is the lesser failure: an inconsistent spelling
+is visible in the transcript, a loop that replaces what was said is not.
+
+This does not stop a loop inside a single window, which happens without any
+prompt from earlier windows; that is a separate guard.

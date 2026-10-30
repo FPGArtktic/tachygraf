@@ -215,6 +215,7 @@ def _run_model(
             language=None if language in ("", "auto") else language,
             beam_size=config.ASR_BEAM_SIZE,
             vad_filter=config.ASR_VAD_FILTER,
+            condition_on_previous_text=config.ASR_CONDITION_ON_PREVIOUS_TEXT,
             word_timestamps=False,
         )
         segments = [
