@@ -69,6 +69,19 @@ def test_a_label_that_is_not_in_the_window_fails() -> None:
         _parse(**{"Key claims": "- An invented citation. [p0099]"})
 
 
+def test_a_label_inside_a_group_that_is_not_in_the_window_fails() -> None:
+    """A group is checked label by label, like labels written one by one."""
+    with pytest.raises(generate.NoteRejected, match="p0099"):
+        _parse(**{"Key claims": "- Half right. [p0042, p0099]"})
+
+
+@pytest.mark.parametrize("citation", ["[p007]", "[p0042-p0044]", "[p42]"])
+def test_a_citation_that_is_not_a_label_fails(citation: str) -> None:
+    """Measured: gemma3:27b wrote "[p007]", which used to reach the note as text."""
+    with pytest.raises(generate.NoteRejected, match="not a label"):
+        _parse(Explanation=f"The speaker said so. {citation}")
+
+
 def test_a_timestamp_anywhere_in_the_body_fails() -> None:
     """The model is never shown a time, so a time in its answer was invented."""
     with pytest.raises(generate.NoteRejected, match="timestamp"):
@@ -146,6 +159,29 @@ def test_several_labels_on_one_claim_share_one_parenthesis() -> None:
         "([[_Transcript#^p0042]] [[_Transcript#^p0043]])"
         in parsed.sections["Key claims"]
     )
+
+
+@pytest.mark.parametrize(
+    "group", ["[p0042, p0043]", "[p0042; p0043]", "[p0042 p0043]", "[ p0042,p0043 ]"]
+)
+def test_a_group_of_labels_becomes_block_references(group: str) -> None:
+    """Measured: gemma4:26b wrote every citation in Explanation as a group."""
+    parsed = _parse(
+        Explanation=f"The speaker developed this. {group}",
+        **{"Key claims": f"- A claim resting on two. {group}"},
+    )
+    both = "([[_Transcript#^p0042]] [[_Transcript#^p0043]])"
+    assert both in parsed.sections["Explanation"]
+    assert both in parsed.sections["Key claims"]
+    assert parsed.dropped_claims == 0
+    assert {"p0042", "p0043"} <= parsed.labels_cited
+
+
+def test_a_bracket_without_a_label_is_left_alone() -> None:
+    """Only a bracket holding a p-number is a citation; other brackets are prose."""
+    parsed = _parse(Explanation="Values in [mV] and a note [see above].")
+    assert "[mV]" in parsed.sections["Explanation"]
+    assert "[see above]" in parsed.sections["Explanation"]
 
 
 # --- the rest of the parser -------------------------------------------------

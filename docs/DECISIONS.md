@@ -653,3 +653,23 @@ Two English recordings and one reviewer are evidence, not a sample, and the
 tool is for Polish recordings as much as English ones. The first Polish
 recording goes through `gemma3:27b` and `qwen2.5:32b` both, and this entry is
 revisited if the order changes there.
+
+## 2026-10-30 — A group of labels is read, a malformed label rejects the note
+
+The parser read a citation only in the form the prompt asks for, one label
+per bracket: `[p0042]`. Two other forms reached the notes on the Polish talk
+(PILOT.md, 2026-10-30) and passed every check, because no check saw them:
+`gemma4:26b` wrote eleven citations as groups, `[p0003, p0004]`, and
+`gemma3:27b` once wrote `[p007]`. Both went into the note as plain text: not
+a link in Obsidian, not compared against the window, not counted.
+
+A group is a citation written differently, so it is split into single labels
+before any rule runs, and from there it is checked and linked like the rest.
+Commas, semicolons and spaces separate; the labels in it must still be four
+digits and in the window. Any other bracket holding a p-number — a short
+label, a range like `[p0003-p0005]` — rejects the whole response, as an
+unknown label already did. A range could have been expanded, but the labels
+between its ends would be the parser's guess, not the model's citation.
+
+This makes the rule stricter than the day before: one `gemma3:27b` note from
+that run would now be rejected and retried on the next run.

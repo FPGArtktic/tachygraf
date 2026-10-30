@@ -45,6 +45,17 @@ SECTION_RE = re.compile(r"^##\s+(.*\S)\s*$", re.MULTILINE)
 # it back: four digits, square brackets, nothing else.
 LABEL_RE = re.compile(r"\[(p\d{4})\]")
 
+# Any bracket the model meant as a citation: it holds a p-number. Measured on a
+# Polish talk (PILOT.md, 2026-10-30): gemma4:26b wrote "[p0003, p0004]"
+# throughout and gemma3:27b once wrote "[p007]"; neither matches LABEL_RE, so
+# both went into the note as plain text, unchecked and unlinked.
+CITATION_RE = re.compile(r"\[([^\[\]\n]*\bp\d+\b[^\[\]\n]*)\]")
+
+# What a citation may hold to count as labels: four-digit labels separated by
+# commas, semicolons or spaces. A range such as "p0003-p0005" is not one,
+# because the labels between its ends would be a guess.
+LABEL_GROUP_RE = re.compile(r"\s*p\d{4}(?:\s*[,;]?\s*p\d{4})*\s*")
+
 # Any clock time at all. The model is never shown one, so a time in its answer
 # was invented, and a study note that cites a time that does not exist is worse
 # than one that cites nothing.
@@ -251,6 +262,27 @@ def labels_in(text: str) -> list[str]:
     return LABEL_RE.findall(text)
 
 
+def split_citations(text: str) -> tuple[str, list[str]]:
+    """Rewrite "[p0003, p0004]" as "[p0003] [p0004]"; return what is not a label.
+
+    The rules downstream, from the window check to the links, read one label
+    per bracket. A group is that, written differently, so it is split here and
+    checked like any other label. Anything else in a bracket that holds a
+    p-number ("[p007]", "[p0003-p0005]") is returned, for the caller to reject:
+    it is a citation that cannot be checked against the window.
+    """
+    malformed: list[str] = []
+
+    def one(match: re.Match[str]) -> str:
+        group = match.group(1)
+        if LABEL_GROUP_RE.fullmatch(group):
+            return " ".join(f"[{label}]" for label in re.findall(r"p\d{4}", group))
+        malformed.append(match.group(0))
+        return match.group(0)
+
+    return CITATION_RE.sub(one, text), malformed
+
+
 def link_labels(text: str) -> str:
     """Rewrite every ``[pNNNN]`` into the block reference it stands for.
 
@@ -342,17 +374,24 @@ def _trim(text: str) -> str:
 def parse(raw: str, labels: set[str], order: int) -> ParsedNote:
     """Check a response against every rule that can be checked, or reject it.
 
-    Three failures reject the whole note, because each means the model was not
-    reading the window it was given: a section missing, a label that is not in
-    the window, and a clock time it cannot have seen. Two failures cost one
-    line: a claim with no label, and a glossary line in the wrong shape.
+    Four failures reject the whole note, because each means the model was not
+    reading the window it was given: a section missing, a citation that is not
+    a label, a label that is not in the window, and a clock time it cannot have
+    seen. Two failures cost one line: a claim with no label, and a glossary
+    line in the wrong shape.
     """
-    text = normalise_math(strip_wrapping(raw))
+    text, malformed = split_citations(normalise_math(strip_wrapping(raw)))
     sections = split_sections(text)
 
     absent = missing_sections(sections)
     if absent:
         raise NoteRejected(f"missing section: {', '.join(absent)}")
+
+    if malformed:
+        raise NoteRejected(
+            f"cited {len(malformed)} label(s) in a form that is not a label: "
+            f"{', '.join(malformed[:5])}"
+        )
 
     unknown = sorted(set(labels_in(text)) - labels)
     if unknown:
