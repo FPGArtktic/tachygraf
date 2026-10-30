@@ -20,7 +20,7 @@ UNIT="$UNIT_DIR/tachygraf.container"
 # localhost resolves to ::1 first on a dual-stack host.
 URL="http://127.0.0.1:7861"
 OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
-TEXT_MODEL="${TACHYGRAF_TEXT_MODEL:-qwen2.5:32b}"
+TEXT_MODEL="${TACHYGRAF_TEXT_MODEL:-gemma3:27b}"
 REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 usage() {

@@ -103,7 +103,7 @@ def _release_vram(stage: str, model: str) -> None:
     """Hand the card back when a job ends.
 
     A model stays resident between the windows of one job, because reloading
-    twenty gigabytes per window would dominate the run. Between jobs it must
+    the weights for every window would dominate the run. Between jobs it must
     not: the next job's ASR stage needs the card, this machine runs other local
     models, and tachygraf is a batch job rather than a service.
     """

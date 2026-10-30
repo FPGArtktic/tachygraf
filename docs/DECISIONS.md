@@ -618,3 +618,38 @@ not enough to say how often the omission happens, which is a PILOT.md item.
 The vocabulary is recorded in `segments.json` under `asr.vocabulary`, so a
 transcript can be traced to the hint it was made with. It is empty by default,
 and empty means no hint at all rather than an empty prompt.
+
+## 2026-10-30 — The text model is gemma3:27b, on two recordings
+
+This replaces "The text model is qwen2.5:32b, on glosator's measurement"
+(2026-10-04) as the default; `qwen2.5:32b` stays selectable per job.
+
+glosator's comparison was `gemma3:12b-it-qat` against `qwen2.5:32b`, and the
+12B lost on fluent reversals. The 16 GB card made a comparison of the same
+class cheap, so `gemma3:27b`, `qwen3:32b` and `qwen2.5:32b` went through the
+same windows with the same prompt and parser (PILOT.md, 2026-10-30): one
+window of the diodes lecture, then both windows of a 28-minute talk for the
+two that mattered. Reviewed against the transcript:
+
+- No model reversed a direction, on either recording. That was the failure
+  that ruled the 12B out, and the 27B did not show it.
+- `gemma3:27b` made the fewest content errors (2 on each recording, against
+  3 and 3 for `qwen2.5:32b`), added nothing from outside the recording, and
+  wrote twice the claims: 14 against 6 on the diodes window, 21 against 11 on
+  the talk. Its Polish glossary invented fewer terms (3 of 9 against 5 of 9
+  on the diodes, 1 against several on the talk), and it fails towards
+  "(brak odpowiednika)" rather than towards a calque.
+- It took the same time: 198 s against 148 s for the diodes window, 256 s
+  against 250 s for the talk. At 17 GB it leaves more of itself on the card.
+- `qwen3:32b` wrote the best Polish and the most outside knowledge, one item
+  of it wrong, and needs thinking turned off in the request. Not taken.
+
+What `gemma3:27b` does worse is citation: on the diodes window about ten of
+its labels pointed at the paragraph next to the one holding the claim. Part of
+that is paragraphs cut mid-sentence at `PARAGRAPH_MAX_S`, and the parser
+cannot see it either way. It is the thing to read first in the next review.
+
+Two English recordings and one reviewer are evidence, not a sample, and the
+tool is for Polish recordings as much as English ones. The first Polish
+recording goes through `gemma3:27b` and `qwen2.5:32b` both, and this entry is
+revisited if the order changes there.

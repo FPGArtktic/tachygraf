@@ -200,7 +200,7 @@ def replace_chunks(conn: sqlite3.Connection, source_id: int, chunks: Iterable) -
     operator wants different notes. Here a plan is a pure function of
     ``segments.json``: re-running the chunk stage on an unchanged transcript
     produces an identical plan, and the notes already written from it are still
-    the right notes. Dropping their stage rows would regenerate hours of 32B
+    the right notes. Dropping their stage rows would regenerate hours of model
     output for nothing, and "the container can be killed at any point; the next
     run resumes" is the whole point of the table.
 

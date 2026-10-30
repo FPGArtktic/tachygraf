@@ -36,7 +36,10 @@ DB_PATH: Path = STATE_DIR / "tachygraf.db"
 PROMPT_DIR: Path = Path(__file__).parent / "prompts"
 
 OLLAMA_URL: str = os.environ.get("OLLAMA_URL", "http://ollama:11434")
-TEXT_MODEL: str = os.environ.get("TACHYGRAF_TEXT_MODEL", "qwen2.5:32b")
+# gemma3:27b rather than glosator's qwen2.5:32b: on both recordings measured
+# here it covered more of the window, made fewer errors and invented fewer
+# Polish terms, in the same time (docs/DECISIONS.md, 2026-10-30).
+TEXT_MODEL: str = os.environ.get("TACHYGRAF_TEXT_MODEL", "gemma3:27b")
 
 # Written into every note's frontmatter as "prompt: N". Bumped by the commit
 # that changes a file in prompts/, so a note can be traced to the prompt that
@@ -50,13 +53,14 @@ NUM_CTX: int = 12288
 TEMPERATURE: float = 0.25
 NUM_PREDICT: int = 2048
 
-# A 32B model offloaded to the CPU generates at a few tokens per second, so a
-# single window can legitimately take twenty minutes. Fail only on a real hang.
+# The text model is larger than the card, so part of it runs on the CPU at a
+# few tokens per second: about three minutes for a full window on the
+# reference machine, twenty on the laptop before it. Fail only on a real hang.
 # A timeout that fires on a healthy run is a bug in this number.
 OLLAMA_TIMEOUT_S: int = 2700
 
-# Keep the model resident between windows; reloading twenty gigabytes of
-# weights per call would dominate the run time.
+# Keep the model resident between windows; reloading 17-20 GB of weights per
+# call would dominate the run time.
 OLLAMA_KEEP_ALIVE: str = "30m"
 
 # --- ASR -------------------------------------------------------------------
