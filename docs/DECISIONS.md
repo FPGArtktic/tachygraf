@@ -472,3 +472,47 @@ A test asserts that the card's compute type contains no `int8`, so the setting
 cannot drift back with a copy from an older config. The CPU path stays `int8`:
 float16 is not implemented there. It has not been checked for loops on this
 machine, and no CPU transcript from the laptop was kept to check.
+
+## 2026-10-30 — The reference machine is a 16 GB desktop card
+
+The machine changed. It was a laptop with an RTX 3050 Mobile (4 GB) and
+64 GB of RAM; it is now a desktop with an RTX 5070 Ti (16 GB, Blackwell,
+compute capability 12.0), a Ryzen 7 7800X3D (8 cores, 16 threads, AVX-512)
+and 32 GB of RAM. The desktop itself is drawn on the NVIDIA card and holds
+1.3–1.5 GB of it, so about 15 GB is what a job can have.
+
+What that changes:
+
+- Both ASR models run on the card. On the laptop `large-v3` was a CPU model
+  whatever else ran, and `config.ASR_MIN_FREE_MB` deliberately named a figure
+  above the card's capacity to say so. The figures are now measured peaks on
+  this card (PILOT.md, 2026-10-30), and what they guard against is a card
+  Ollama has not yet let go of, not a card that is too small.
+- Blackwell needs CUDA libraries that know compute capability 12.0: cuBLAS
+  from CUDA 12.8 and cuDNN 9.7. The `cuda` extra's lower bounds say so. The
+  old bounds (12.3, 9.1) would resolve to the same wheels today and to a
+  broken image the day a resolver picked the floor.
+- The CDI spec. `nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml` writes
+  the driver's library versions into a file nothing regenerates, and Arch
+  updates the driver often. nvidia-container-toolkit ships
+  `nvidia-cdi-refresh.path` and `.service`, which write `/var/run/cdi` at boot
+  and at every driver update; the launcher and the unit now point to those.
+  `/var/run` is a tmpfs, so a spec generated there by hand is gone after a
+  reboot. The launcher's check also had a bug this machine exposed: `ls` on
+  both paths fails whenever one is missing, so a spec in `/var/run/cdi` alone
+  produced the "no CDI spec" warning.
+
+What it does not change:
+
+- One model on the GPU at a time. `qwen2.5:32b` is about 20 GB, more than the
+  whole card, so Ollama still offloads part of it to the CPU and still sizes
+  that offload to the VRAM free when it loads. An ASR model left resident
+  would cost the generate stage layers for its whole duration.
+- The text model. The hardware removes the reason a smaller model was ever
+  worth considering, which was speed; it does not touch the reason
+  `qwen2.5:32b` was chosen, which was 5 confirmed errors against 19. What the
+  card makes cheap is comparing models of the same class on one window, and
+  that is a PILOT.md entry before it is a decision.
+- RAM halved, from 64 to 32 GB. A 32B model with part of it offloaded fits;
+  nothing larger does, so a 70B model is out of reach on this machine
+  whatever the card.

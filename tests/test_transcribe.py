@@ -88,11 +88,12 @@ def _audio(slug: str = "lec4") -> Path:
 
 
 def test_a_free_card_is_used(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 3800)
+    """15000 MB: the reference card, 16 GB, with the desktop on it."""
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     device, compute, reason = transcribe.choose_device("large-v3-turbo")
     assert device == "cuda"
     assert compute == config.ASR_COMPUTE_GPU
-    assert "3800 MB" in reason
+    assert "15000 MB" in reason
 
 
 def test_a_busy_card_falls_back_to_the_cpu_and_says_why(
@@ -104,7 +105,7 @@ def test_a_busy_card_falls_back_to_the_cpu_and_says_why(
     assert device == "cpu"
     assert compute == config.ASR_COMPUTE_CPU
     assert "400 MB" in reason
-    assert "large-v3-turbo needs 2000 MB" in reason
+    assert f"large-v3-turbo needs {transcribe.needed_mb('large-v3-turbo')} MB" in reason
 
 
 def test_no_card_at_all_is_a_reason_not_an_error(on_the_cpu) -> None:
@@ -121,7 +122,7 @@ def test_a_card_that_fails_during_inference_falls_back_to_the_cpu(
     nvml said the card was free, the weights loaded, and CTranslate2 then could
     not dlopen libcublas. A failure there must degrade, not fail the job.
     """
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 3800)
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     attempts: list[str] = []
 
     class FailsOnInference:
@@ -168,7 +169,7 @@ def test_the_card_refusing_the_model_is_retried_on_the_cpu(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """nvml can report memory that something else claims a moment later."""
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 3800)
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     attempts: list[str] = []
 
     def load(name, device, compute_type):
@@ -551,16 +552,16 @@ def test_the_child_entry_point_writes_the_segments(
 def test_a_model_too_large_for_the_card_goes_to_the_cpu_before_loading(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Measured: large-v3 OOM'd with 4004 MB of a 4096 MB card free."""
+    """Measured: large-v3 OOM'd with 4004 MB of a 4096 MB laptop card free."""
     monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 4004)
     device, _compute, reason = transcribe.choose_device("large-v3")
     assert device == "cpu"
-    assert "large-v3 needs 5000 MB" in reason
+    assert f"large-v3 needs {transcribe.needed_mb('large-v3')} MB" in reason
 
 
 def test_an_unmeasured_model_gets_the_default_requirement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 3000)
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     assert transcribe.needed_mb("distil-large-v3") == config.ASR_MIN_FREE_DEFAULT_MB
     assert transcribe.choose_device("distil-large-v3")[0] == "cuda"

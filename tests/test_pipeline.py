@@ -81,7 +81,7 @@ def pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, asr_in_process) ->
     monkeypatch.setattr(
         media, "extract_audio", lambda slug, path, force=False: _fake_audio(slug)
     )
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 6000)
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     monkeypatch.setattr(
         transcribe, "load_model", lambda name, device, compute: FakeAsr()
     )

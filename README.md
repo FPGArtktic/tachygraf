@@ -88,13 +88,20 @@ terminology needed to look a subject up in either language.
 
 - Podman, rootless. Nothing is installed on the host.
 - [Ollama](https://ollama.com) on the host with a text model, by default
-  `qwen2.5:32b`. The container reaches it the way glosator does, with
-  `pasta --map-host-loopback`; nothing has to be changed on the Ollama side.
+  `qwen2.5:32b`. On Arch that is `sudo pacman -S ollama-cuda`, then
+  `ollama pull qwen2.5:32b`. The container reaches it the way glosator does,
+  with `pasta --map-host-loopback`; nothing has to be changed on the Ollama
+  side.
 - An NVIDIA GPU with a CDI spec, for the transcription stage:
-  `sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml`. Without it,
+  `sudo systemctl enable --now nvidia-cdi-refresh.path nvidia-cdi-refresh.service`,
+  which regenerates the spec at boot and at every driver update. Without it,
   transcription falls back to the CPU and says so. The reference machine is a
-  laptop with 4 GB of VRAM; the text model runs mostly on the CPU, slowly.
-  That is the design point rather than a constraint to be worked around.
+  desktop with an RTX 5070 Ti (16 GB) and 32 GB of RAM: both ASR models run on
+  the card, and the text model, at about 20 GB, still does not fit it and is
+  partly offloaded to the CPU. That is the design point rather than a
+  constraint to be worked around. The ASR stage needs compute capability 12.0
+  support from CUDA 12.8 and cuDNN 9.7 or later on Blackwell cards; the image
+  pins both.
 
 ## Quick start
 

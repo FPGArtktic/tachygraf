@@ -7,7 +7,8 @@ one that asks for the card. Two rules hold it to that:
 
 - The model is built inside ``transcribe_audio`` and dropped in its ``finally``,
   so the card is free again before Ollama is asked for anything. One model on
-  the GPU at a time is not a convention here, it is what 4 GB of VRAM allows.
+  the GPU at a time is not a convention here: the text model alone is larger
+  than the card's 16 GB, and Ollama fills whatever the ASR model leaves.
 - Whether the card was available is recorded, not assumed. A stage that quietly
   degraded to the CPU and reported success is the docling failure glosator met
   once; here the device and the reason for it go into the log and the UI.
@@ -120,12 +121,12 @@ def choose_device(model_name: str = config.ASR_MODEL) -> tuple[str, str, str]:
 
     The CPU is a correct answer, not a failure. It is the answer when the card
     is busy — Ollama may still hold the text model from the previous job — and
-    also when the model is simply too large for the card, which on the
-    reference machine is the case for large-v3 whatever else is running.
+    also when the model is simply too large for the card, which on the 4 GB
+    laptop this was first run on was the case for large-v3 whatever else ran.
 
     The requirement is per model and measured, so a model that cannot fit says
-    so in one line before it loads anything, rather than spending ninety
-    seconds putting weights on the card and then falling back.
+    so in one line before it loads anything, rather than putting weights on the
+    card and then falling back.
     """
     free = gpu_free_mb()
     if free is None:
@@ -328,10 +329,10 @@ def produce_segments(
     CTranslate2 keeps a caching CUDA allocator: dropping the model hands its
     memory back to that cache rather than to the driver, and the worker
     process outlives the stage by design, because it goes on to the next job.
-    Measured on the reference machine: after one ASR attempt the worker still
-    held 2008 MiB of a 4096 MiB card while the stage itself had moved to the
-    CPU. That is the generate stage's VRAM, and it is what the next job's
-    ``choose_device`` would see and misread as room.
+    Measured on the 4 GB laptop this was first run on: after one ASR attempt
+    the worker still held 2008 MiB of a 4096 MiB card while the stage itself
+    had moved to the CPU. That is the generate stage's VRAM, and it is what the
+    next job's ``choose_device`` would see and misread as room.
 
     ``del model`` in a ``finally`` is therefore not enough, and no API call is:
     process exit is the only thing that returns device memory

@@ -8,9 +8,10 @@ up where it stopped.
 
 The one addition is the order the stages hold the card in. A job runs
 ``extract (CPU) -> transcribe (GPU) -> release -> generate (Ollama) -> unload``,
-and the release in the middle is not a politeness: the ASR model and the text
-model do not both fit in 4 GB, so the second would die of CUDA OOM if the first
-were still resident.
+and the release in the middle is not a politeness: the text model alone is
+larger than the card's 16 GB and Ollama sizes its offload to the VRAM that is
+free when it loads, so an ASR model still resident would push layers of the
+text model onto the CPU for the whole of the generate stage.
 """
 
 from __future__ import annotations

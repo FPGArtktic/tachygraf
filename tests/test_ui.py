@@ -82,15 +82,20 @@ def test_the_device_note_says_cpu_when_the_card_is_busy(
 def test_the_device_note_says_gpu_when_the_card_is_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 3800)
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 15000)
     assert "GPU" in ui.device_note("large-v3-turbo")
 
 
 def test_the_device_note_names_the_model_it_is_talking_about(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The answer differs per model on a 4 GB card, so the note must say which."""
-    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: 4004)
+    """The answer can differ per model, so the note must say which.
+
+    On the 4 GB laptop card this was first run on it always did; on the 16 GB
+    card it does while Ollama is still letting go of the card.
+    """
+    free = transcribe.needed_mb("large-v3") - 1
+    monkeypatch.setattr(transcribe, "gpu_free_mb", lambda: free)
     assert "GPU" in ui.device_note("large-v3-turbo")
     assert "CPU" in ui.device_note("large-v3")
 

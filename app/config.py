@@ -89,31 +89,34 @@ ASR_COMPUTE_CPU: str = "int8"
 
 # How much of the card a model needs before the stage will put it there. Per
 # model, because the two differ by more than their weights do, and measured
-# rather than reasoned: large-v3 at int8_float16 failed with "CUDA failed with
-# error out of memory" on the reference machine with 4004 MB of a 4096 MB card
-# free. Its weights are about 1.6 GB; the encoder activations and the cuDNN
-# workspace are the rest, and on a 4 GB laptop card they do not fit.
+# rather than reasoned: the peak of the card's used memory, sampled every
+# 100 ms over one run on the diodes recording, minus what the desktop held
+# before it, at float16 on the RTX 5070 Ti. large-v3 peaked at 5785 MB and
+# large-v3-turbo at 2638 MB. Each figure below is that peak plus a margin for a
+# spike the sampling missed.
 #
-# So on this machine large-v3 is a CPU model and large-v3-turbo is the one
-# that runs on the card: turbo keeps the same encoder but has 4 decoder layers
-# instead of 32, which is where both the size and the speed come from.
+# Neither figure depends on the recording's length: the model works through
+# 30-second windows at a fixed beam width, so a three-hour lecture needs the
+# same card as an eleven-minute one.
 #
-# A figure above the card's capacity is not a mistake here. It is how the
-# stage says "not on this card" at the start, in one line in the log, instead
-# of spending ninety seconds loading weights and then falling back anyway.
+# Both fit this card with room to spare. What the figure is for here is a card
+# Ollama has not yet let go of, which is the case where the stage should say
+# "CPU" in one line before loading anything, instead of spending a minute
+# putting weights on the card and then falling back anyway.
 ASR_MIN_FREE_MB: dict[str, int] = {
-    "large-v3": 5000,
-    "large-v3-turbo": 2000,
+    "large-v3": 6500,
+    "large-v3-turbo": 3000,
 }
 
-# For a model nobody has measured. Enough for weights plus working space on
-# something turbo-sized, and the fallback still catches it if that is wrong.
-ASR_MIN_FREE_DEFAULT_MB: int = 2500
+# For a model nobody has measured. A little above turbo, which is the smallest
+# model offered, and the fallback still catches it if that is wrong.
+ASR_MIN_FREE_DEFAULT_MB: int = 3500
 
 # Threads for the CPU path, which is the fallback and not the design point.
-# Half the cores of the reference machine: the interface, the worker and
-# whatever else the user is running want the rest, and this stage only has the
-# machine to itself when it is on the card.
+# The reference machine's Ryzen 7 7800X3D has 8 cores and 16 threads: one
+# thread per physical core, and the interface, the worker and whatever else the
+# user is running get the second thread of each. Not measured against 16; the
+# CPU path has not been timed on this machine.
 ASR_CPU_THREADS: int = 8
 
 # Beam search width. 5 is faster-whisper's default and the figure every

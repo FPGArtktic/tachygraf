@@ -109,14 +109,16 @@ def test_the_window_budget_fits_the_context_window() -> None:
 
 
 def test_the_asr_vram_requirements_are_measured_per_model() -> None:
-    """large-v3 does not fit the reference card; turbo does. Both are measured.
+    """Both models fit the reference card; turbo needs less. Both are measured.
 
-    A requirement above the card's capacity is deliberate: it is how the stage
-    says "not on this card" before loading anything.
+    15000 MB is what the 16 GB card has free with the desktop running on it.
     """
-    assert config.ASR_MIN_FREE_MB["large-v3-turbo"] < 4096
-    assert config.ASR_MIN_FREE_MB["large-v3"] > 4096
-    assert 0 < config.ASR_MIN_FREE_DEFAULT_MB < 4096
+    assert (
+        config.ASR_MIN_FREE_MB["large-v3-turbo"]
+        < config.ASR_MIN_FREE_MB["large-v3"]
+        < 15000
+    )
+    assert 0 < config.ASR_MIN_FREE_DEFAULT_MB < 15000
     # Every model the interface offers has a measured figure.
     from app import ui
 
