@@ -55,33 +55,54 @@ def window_text(group: Sequence[Paragraph]) -> str:
     return "\n".join(f"[{paragraph.label}] {paragraph.text}" for paragraph in group)
 
 
+def window_tokens(group: Sequence[Paragraph]) -> int:
+    """The window's size as the generate stage measures it.
+
+    ``generate.run`` refuses a window whose file is over ``CHUNK_MAX_TOKENS``,
+    and the file is the labelled text, not the bare paragraphs. Measuring
+    anything else here lets a window pass this stage and fail that one.
+    """
+    return generate.estimate_tokens(window_text(group) + "\n")
+
+
 def group_paragraphs(built: Sequence[Paragraph]) -> list[list[Paragraph]]:
     """Cut the paragraphs into windows at pauses, within the token budget.
 
     A window closes when it has reached ``CHUNK_MIN_TOKENS`` and the speaker
-    pauses for at least ``PAUSE_SPLIT_S``, or unconditionally at
-    ``CHUNK_MAX_TOKENS``. Without the second condition a lecture delivered
-    without a real break would be one window the model cannot read.
+    pauses for at least ``PAUSE_SPLIT_S``, or unconditionally before the
+    paragraph that would take it over ``CHUNK_MAX_TOKENS``. Without the second
+    condition a lecture delivered without a real break would be one window the
+    model cannot read.
+
+    Before, not at: the budget used to be checked after a paragraph was added,
+    so a window could overshoot by one paragraph, and the generate stage
+    refuses a window over budget. The first recording long enough to reach the
+    budget, 27 minutes without a 2.5-second pause, closed its first window at
+    6191 tokens of 6000, which would have left 22 minutes with no note.
     """
     groups: list[list[Paragraph]] = []
     current: list[Paragraph] = []
-    tokens = 0
     carried = False
 
     for position, paragraph in enumerate(built):
         current.append(paragraph)
-        tokens += generate.estimate_tokens(paragraph.text)
         following = built[position + 1] if position + 1 < len(built) else None
         if following is None:
             break
         gap = following.start - paragraph.end
-        at_pause = tokens >= config.CHUNK_MIN_TOKENS and gap >= config.PAUSE_SPLIT_S
-        if at_pause or tokens >= config.CHUNK_MAX_TOKENS:
+        long_enough = window_tokens(current) >= config.CHUNK_MIN_TOKENS
+        at_pause = long_enough and gap >= config.PAUSE_SPLIT_S
+        # A window holding only the carried paragraph is not closed, whatever
+        # its size: it would be a note about text the last note already covers.
+        full = (
+            len(current) > 1
+            and window_tokens([*current, following]) > config.CHUNK_MAX_TOKENS
+        )
+        if at_pause or full:
             groups.append(current)
             # One paragraph of overlap: the window that closed ends with this
             # paragraph and the next one begins with it.
             current = [paragraph]
-            tokens = generate.estimate_tokens(paragraph.text)
             carried = True
 
     if current and not (carried and len(current) == 1 and groups):

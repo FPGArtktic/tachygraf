@@ -18,8 +18,10 @@ from app.transcribe import Paragraph, Segment
 
 @pytest.fixture(autouse=True)
 def small_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 30 rather than 20: the budget counts each paragraph's label, which puts
+    # three of the four-word paragraphs below at 24 tokens.
     monkeypatch.setattr(config, "CHUNK_MIN_TOKENS", 5)
-    monkeypatch.setattr(config, "CHUNK_MAX_TOKENS", 20)
+    monkeypatch.setattr(config, "CHUNK_MAX_TOKENS", 30)
     monkeypatch.setattr(config, "PAUSE_SPLIT_S", 2.5)
 
 
@@ -67,6 +69,26 @@ def test_a_window_closes_at_the_budget_even_without_a_pause(
     ]
     groups = chunk.group_paragraphs(built)
     assert len(groups) > 1
+
+
+def test_no_window_is_over_the_budget_the_generate_stage_enforces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 27-minute talk without a pause closed a window at 6191 tokens of 6000.
+
+    The budget was checked after a paragraph was added and on the bare text,
+    without the labels, and the generate stage refused the window: 22 minutes
+    of the recording with no note.
+    """
+    monkeypatch.setattr(config, "CHUNK_MAX_TOKENS", 40)
+    built = [
+        _paragraph(index, float(index) * 10, float(index) * 10 + 9.8)
+        for index in range(1, 30)
+    ]
+    groups = chunk.group_paragraphs(built)
+    assert len(groups) > 1
+    for group in groups:
+        assert chunk.window_tokens(group) <= config.CHUNK_MAX_TOKENS
 
 
 def test_each_window_repeats_the_last_paragraph_of_the_one_before() -> None:
